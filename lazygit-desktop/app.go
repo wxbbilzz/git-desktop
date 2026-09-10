@@ -1,0 +1,228 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"lazygit-desktop/engine"
+)
+
+// App 是暴露给前端的对象。
+//
+// Wails 会把这里所有导出方法生成成 window.go.main.App.* 供 TypeScript 调用，
+// 所以我们不需要手写任何 IPC 协议 —— 这正是选 Wails 的主要原因。
+//
+// 这一层刻意做得很薄：它只负责「转发到引擎」和「需要窗口上下文的事（如目录选择框）」，
+// 真正的 git 逻辑全部在 engine 包里。
+type App struct {
+	ctx    context.Context
+	engine *engine.Engine
+}
+
+func NewApp() *App {
+	eng, err := engine.New()
+	if err != nil {
+		panic(err)
+	}
+	return &App{engine: eng}
+}
+
+func (a *App) startup(ctx context.Context) {
+	a.ctx = ctx
+
+	// 尽力打开启动目录。不是 git 仓库也没关系，
+	// 前端会显示「选择仓库」的空状态。
+	if wd, err := os.Getwd(); err == nil {
+		_, _ = a.engine.OpenRepo(wd)
+	}
+}
+
+func (a *App) shutdown(ctx context.Context) {
+	_ = a.engine.Close()
+}
+
+// ---------------------------------------------------------------------------
+// 读取
+// ---------------------------------------------------------------------------
+
+// Snapshot 返回当前仓库的完整状态快照。
+func (a *App) Snapshot() (*engine.RepoSnapshot, error) {
+	return a.engine.Snapshot()
+}
+
+// PickRepo 弹出系统目录选择框，返回用户选中的路径（取消则返回空串）。
+func (a *App) PickRepo() (string, error) {
+	if a.ctx == nil {
+		return "", fmt.Errorf("应用尚未就绪")
+	}
+	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "选择 Git 仓库",
+	})
+}
+
+// ChooseAndOpenRepo 弹出目录选择框并打开选中的仓库。
+// 用户取消时返回 (nil, nil)，前端据此不做任何事。
+func (a *App) ChooseAndOpenRepo() (*engine.RepoSnapshot, error) {
+	dir, err := a.PickRepo()
+	if err != nil {
+		return nil, err
+	}
+	if dir == "" {
+		return nil, nil
+	}
+	return a.engine.OpenRepo(dir)
+}
+
+// OpenRepo 直接按路径打开仓库。
+func (a *App) OpenRepo(path string) (*engine.RepoSnapshot, error) {
+	return a.engine.OpenRepo(path)
+}
+
+// FileDiff 取文件 diff；staged 为 true 时看暂存区。
+func (a *App) FileDiff(path string, staged bool) (string, error) {
+	return a.engine.FileDiff(path, staged)
+}
+
+// CommitDiff 取某次提交的 diff。
+func (a *App) CommitDiff(hash string) (string, error) {
+	return a.engine.CommitDiff(hash)
+}
+
+// ---------------------------------------------------------------------------
+// 动作（都返回操作后的新快照，前端直接替换本地状态即可）
+// ---------------------------------------------------------------------------
+
+func (a *App) StageFile(path string) (*engine.RepoSnapshot, error) {
+	return a.engine.StageFile(path)
+}
+
+func (a *App) UnstageFile(path string) (*engine.RepoSnapshot, error) {
+	return a.engine.UnstageFile(path)
+}
+
+func (a *App) StageAll() (*engine.RepoSnapshot, error) {
+	return a.engine.StageAll()
+}
+
+func (a *App) UnstageAll() (*engine.RepoSnapshot, error) {
+	return a.engine.UnstageAll()
+}
+
+func (a *App) DiscardFile(path string) (*engine.RepoSnapshot, error) {
+	return a.engine.DiscardFile(path)
+}
+
+func (a *App) Commit(summary string, description string) (*engine.RepoSnapshot, error) {
+	return a.engine.Commit(summary, description)
+}
+
+func (a *App) CheckoutBranch(name string) (*engine.RepoSnapshot, error) {
+	return a.engine.CheckoutBranch(name)
+}
+
+func (a *App) CreateBranch(name string) (*engine.RepoSnapshot, error) {
+	return a.engine.CreateBranch(name)
+}
+
+func (a *App) Fetch() (*engine.RepoSnapshot, error) {
+	return a.engine.Fetch()
+}
+
+func (a *App) Pull() (*engine.RepoSnapshot, error) {
+	return a.engine.Pull()
+}
+
+func (a *App) Push() (*engine.RepoSnapshot, error) {
+	return a.engine.Push()
+}
+
+// ---------------------------------------------------------------------------
+// 仓库的建立：新建 / 克隆
+// ---------------------------------------------------------------------------
+
+// PickDirectory 弹出系统目录选择框。title 用于区分不同用途的对话框。
+func (a *App) PickDirectory(title string) (string, error) {
+	if a.ctx == nil {
+		return "", fmt.Errorf("应用尚未就绪")
+	}
+	if title == "" {
+		title = "选择目录"
+	}
+	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: title})
+}
+
+// DefaultBaseDir 返回「存放位置」输入框的默认值（通常是用户主目录）。
+func (a *App) DefaultBaseDir() string {
+	return engine.DefaultBaseDir()
+}
+
+// DeriveRepoName 从仓库地址推断目录名，供「下载仓库」表单预填。
+func (a *App) DeriveRepoName(url string) string {
+	return engine.DeriveRepoName(url)
+}
+
+// CreateRepo 新建一个仓库并打开。
+func (a *App) CreateRepo(parentDir string, name string, initialBranch string) (*engine.RepoSnapshot, error) {
+	return a.engine.InitRepo(parentDir, name, initialBranch)
+}
+
+// CloneRepo 克隆远端仓库并打开。
+//
+// 克隆期间会通过 "clone:progress" 事件把进度推给前端，
+// 前端用 window.runtime.EventsOn("clone:progress", ...) 接收。
+func (a *App) CloneRepo(url string, dest string, depth int) (*engine.RepoSnapshot, error) {
+	return a.engine.CloneRepo(url, dest, depth, func(p engine.CloneProgress) {
+		if a.ctx != nil {
+			// Wails 的事件发送是并发安全的，可以从 clone 的读取 goroutine 里调用
+			runtime.EventsEmit(a.ctx, "clone:progress", p)
+		}
+	})
+}
+
+// JoinPath 让前端不必自己处理路径分隔符（Windows / Linux 差异）。
+func (a *App) JoinPath(dir string, name string) string {
+	return filepath.Join(dir, name)
+}
+
+// ---------------------------------------------------------------------------
+// git 全命令：操作目录 + 通用执行器
+// ---------------------------------------------------------------------------
+
+// Operations 返回全部受支持的 git 操作，供前端渲染操作面板。
+func (a *App) Operations() []engine.OperationSummary {
+	return a.engine.Operations()
+}
+
+// RunOperation 执行目录中的一个操作。args 是表单里填的参数。
+func (a *App) RunOperation(id string, args map[string]string) (*engine.RunResult, error) {
+	return a.engine.RunOperation(id, args)
+}
+
+// RunRawGit 执行任意 git 命令（兜底入口）。
+// command 是一行命令，可以带引号，也可以以 "git " 开头。
+func (a *App) RunRawGit(command string) (*engine.RunResult, error) {
+	args := engine.SplitCommandLine(command)
+	if len(args) > 0 && args[0] == "git" {
+		args = args[1:]
+	}
+	return a.engine.RunRawGit(args)
+}
+
+// ---------------------------------------------------------------------------
+// 提交身份
+// ---------------------------------------------------------------------------
+
+// Identity 返回当前生效的 user.name / user.email。
+func (a *App) Identity() (string, string) {
+	return a.engine.Identity()
+}
+
+// SetIdentity 设置提交身份并返回新快照。
+// global=true 写入全局配置（对所有仓库生效）。
+func (a *App) SetIdentity(name string, email string, global bool) (*engine.RepoSnapshot, error) {
+	return a.engine.SetIdentity(name, email, global)
+}

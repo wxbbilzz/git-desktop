@@ -1,0 +1,21 @@
+# Go
+/lazygit-desktop
+*.exe
+*.test
+*.out
+go.sum
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/package-lock.json
+
+# Wails 构建产物
+build/bin/
+build/darwin/
+build/windows/
+
+# 编辑器
+.idea/
+.vscode/
+.DS_Store
