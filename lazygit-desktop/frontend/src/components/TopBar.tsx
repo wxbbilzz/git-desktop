@@ -9,6 +9,7 @@ import {
   IconPull,
   IconPush,
   IconRefresh,
+  IconUpload,
 } from "./icons";
 
 interface Props {
@@ -21,6 +22,7 @@ interface Props {
   onOpenRepo: () => void;
   onHome: () => void;
   onOperations: () => void;
+  onPublish: () => void;
 }
 
 export function TopBar({
@@ -33,6 +35,7 @@ export function TopBar({
   onOpenRepo,
   onHome,
   onOperations,
+  onPublish,
 }: Props) {
   const disabled = busy !== null;
 
@@ -82,6 +85,14 @@ export function TopBar({
       </PillButton>
       <PillButton icon={<IconPull />} onClick={onPull} disabled={disabled}>
         Pull
+      </PillButton>
+      <PillButton
+        icon={<IconUpload />}
+        onClick={onPublish}
+        disabled={disabled}
+        title="上传到 GitHub / Gitee"
+      >
+        上传
       </PillButton>
       <PillButton
         variant="primary"

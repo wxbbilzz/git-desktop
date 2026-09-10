@@ -1,0 +1,367 @@
+package engine
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os/exec"
+	"strings"
+	"time"
+)
+
+// 本文件实现「把本地仓库一键上传到 GitHub / Gitee」。
+//
+// 流程：
+//   1. 调用托管平台的 API 创建远端仓库
+//   2. 给本地仓库添加（或更新）名为 origin 的远端
+//   3. 推送当前分支并设置上游
+//
+// 为什么需要 token：创建仓库是平台 API 的写操作，必须鉴权。
+// token 由用户自己到平台上生成（GitHub: repo 权限；Gitee: projects 权限），
+// 软件不保存、不上传，只用于这一次以及后续推送。
+
+const (
+	PlatformGitHub = "github"
+	PlatformGitee  = "gitee"
+)
+
+// PublishRequest 是一次上传请求。
+type PublishRequest struct {
+	Platform    string `json:"platform"` // github / gitee
+	Token       string `json:"token"`
+	Name        string `json:"name"` // 远端仓库名
+	Description string `json:"description"`
+	Private     bool   `json:"private"`
+	RemoteName  string `json:"remoteName"` // 留空用 origin
+	Branch      string `json:"branch"`     // 留空用当前分支
+	// StoreToken 为真时把 token 写进 remote URL，
+	// 这样以后在软件里点「Push」也能直接用（代价是 token 明文存在 .git/config）
+	StoreToken bool `json:"storeToken"`
+}
+
+// PublishResult 是上传结果。
+type PublishResult struct {
+	RepoURL  string        `json:"repoUrl"`  // 网页地址
+	CloneURL string        `json:"cloneUrl"` // 用于 git 的地址
+	Command  string        `json:"command"`
+	Output   string        `json:"output"`
+	OK       bool          `json:"ok"`
+	Error    string        `json:"error"`
+	Snapshot *RepoSnapshot `json:"snapshot"`
+}
+
+// Publish 把当前仓库上传到托管平台。
+// onProgress 会分阶段回调，用来在界面上显示进度。
+func (e *Engine) Publish(req PublishRequest, onProgress func(step string)) (*PublishResult, error) {
+	if onProgress == nil {
+		onProgress = func(string) {}
+	}
+
+	platform := strings.ToLower(strings.TrimSpace(req.Platform))
+	req.Token = strings.TrimSpace(req.Token)
+	req.Name = strings.TrimSpace(req.Name)
+	req.Branch = strings.TrimSpace(req.Branch)
+	req.RemoteName = strings.TrimSpace(req.RemoteName)
+
+	if platform != PlatformGitHub && platform != PlatformGitee {
+		return nil, fmt.Errorf("暂不支持该平台：%s", req.Platform)
+	}
+	if req.Token == "" {
+		return nil, fmt.Errorf("请填写访问令牌（token）")
+	}
+	if req.Name == "" {
+		return nil, fmt.Errorf("请填写仓库名")
+	}
+	if !validRepoName(req.Name) {
+		return nil, fmt.Errorf("仓库名只能包含字母、数字、点、下划线和连字符")
+	}
+	if req.RemoteName == "" {
+		req.RemoteName = "origin"
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if err := e.requireRepoLocked(); err != nil {
+		return nil, err
+	}
+
+	// 分支留空就用当前分支
+	if req.Branch == "" {
+		out, err := e.gitOutput("rev-parse", "--abbrev-ref", "HEAD")
+		if err != nil {
+			return nil, err
+		}
+		req.Branch = strings.TrimSpace(out)
+	}
+	if req.Branch == "" || req.Branch == "HEAD" {
+		return nil, fmt.Errorf("当前处于游离 HEAD 状态，请先切换到一个分支再上传")
+	}
+
+	res := &PublishResult{}
+
+	// ---- 1) 创建远端仓库 ----
+	onProgress("正在创建远端仓库")
+	repo, err := createRemoteRepo(platform, req)
+	if err != nil {
+		res.OK = false
+		res.Error = err.Error()
+		return res, nil
+	}
+	res.RepoURL = repo.htmlURL
+	res.CloneURL = repo.cloneURL
+
+	// ---- 2) 配置远端 ----
+	onProgress("正在配置远端地址")
+	remoteURL := repo.cloneURL
+	if req.StoreToken {
+		remoteURL = authenticatedURL(platform, repo, req.Token)
+	}
+
+	existing, _ := e.gitOutput("remote", "get-url", req.RemoteName)
+	if strings.TrimSpace(existing) != "" {
+		if _, err := e.gitOutput("remote", "set-url", req.RemoteName, remoteURL); err != nil {
+			res.Error = err.Error()
+			return res, nil
+		}
+	} else {
+		if _, err := e.gitOutput("remote", "add", req.RemoteName, remoteURL); err != nil {
+			res.Error = err.Error()
+			return res, nil
+		}
+	}
+
+	// ---- 3) 推送 ----
+	onProgress("正在推送代码")
+	pushURL := authenticatedURL(platform, repo, req.Token)
+	argv := []string{"push", "-u", pushURL, req.Branch + ":" + req.Branch}
+	res.Command = "git " + strings.Join(redact(argv), " ")
+
+	pushOut, pushErr := e.gitRun(argv...)
+	res.Output = strings.TrimSpace(pushOut)
+	if pushErr != nil {
+		res.Error = pushErr.Error()
+		// 推送失败时把远端地址改回干净地址，避免留下带 token 的配置
+		if req.StoreToken {
+			_, _ = e.gitOutput("remote", "set-url", req.RemoteName, repo.cloneURL)
+		}
+		return res, nil
+	}
+
+	// 推送成功后，如果不需要记住 token，把远端地址恢复成干净形式
+	if req.StoreToken {
+		// 保留带 token 的地址，方便下次直接推送
+	} else {
+		_, _ = e.gitOutput("remote", "set-url", req.RemoteName, repo.cloneURL)
+	}
+
+	res.OK = true
+	onProgress("完成")
+
+	if snap, err := e.snapshotLocked(); err == nil {
+		res.Snapshot = snap
+	}
+	return res, nil
+}
+
+// ---------------------------------------------------------------- 平台 API
+
+type createdRepo struct {
+	htmlURL  string
+	cloneURL string
+	owner    string
+	name     string
+}
+
+// createRemoteRepo 调用平台 API 创建仓库。
+func createRemoteRepo(platform string, req PublishRequest) (*createdRepo, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	if platform == PlatformGitHub {
+		body, _ := json.Marshal(map[string]interface{}{
+			"name":        req.Name,
+			"description": req.Description,
+			"private":     req.Private,
+			"auto_init":   false, // 不要帮我们建 README，否则推送会冲突
+		})
+		httpReq, err := http.NewRequest("POST", "https://api.github.com/user/repos", bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+req.Token)
+		httpReq.Header.Set("Accept", "application/vnd.github+json")
+		httpReq.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(httpReq)
+		if err != nil {
+			return nil, fmt.Errorf("连接 GitHub 失败（这台机器可能访问不了 github.com）: %w", err)
+		}
+		defer resp.Body.Close()
+		raw, _ := io.ReadAll(resp.Body)
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("GitHub 创建仓库失败（%d）：%s", resp.StatusCode, apiError(raw))
+		}
+
+		var out struct {
+			HTMLURL  string `json:"html_url"`
+			CloneURL string `json:"clone_url"`
+			Owner    struct {
+				Login string `json:"login"`
+			} `json:"owner"`
+			Name string `json:"name"`
+		}
+		if err := json.Unmarshal(raw, &out); err != nil {
+			return nil, fmt.Errorf("解析 GitHub 返回失败: %w", err)
+		}
+		return &createdRepo{htmlURL: out.HTMLURL, cloneURL: out.CloneURL, owner: out.Owner.Login, name: out.Name}, nil
+	}
+
+	// Gitee
+	form := map[string]string{
+		"access_token": req.Token,
+		"name":         req.Name,
+		"description":  req.Description,
+		"private":      fmt.Sprintf("%t", req.Private),
+		// 不要自动初始化，避免远端已有提交导致推送冲突
+		"auto_init": "false",
+	}
+	vals := make([]string, 0, len(form))
+	for k, v := range form {
+		vals = append(vals, k+"="+urlQueryEscape(v))
+	}
+	httpReq, err := http.NewRequest(
+		"POST",
+		"https://gitee.com/api/v5/user/repos",
+		strings.NewReader(strings.Join(vals, "&")),
+	)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("连接 Gitee 失败: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("Gitee 创建仓库失败（%d）：%s", resp.StatusCode, apiError(raw))
+	}
+
+	var out struct {
+		HTMLURL  string `json:"html_url"`
+		FullName string `json:"full_name"`
+		Name     string `json:"name"`
+		Owner    struct {
+			Login string `json:"login"`
+		} `json:"owner"`
+		Namespace struct {
+			Path string `json:"path"`
+		} `json:"namespace"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("解析 Gitee 返回失败: %w", err)
+	}
+
+	owner := out.Namespace.Path
+	if owner == "" {
+		owner = out.Owner.Login
+	}
+	cloneURL := ""
+	if out.HTMLURL != "" {
+		cloneURL = strings.TrimSuffix(out.HTMLURL, "/") + ".git"
+	}
+	return &createdRepo{htmlURL: out.HTMLURL, cloneURL: cloneURL, owner: owner, name: out.Name}, nil
+}
+
+// authenticatedURL 拼出带凭据的 HTTPS 地址，仅用于推送，不会提交到仓库里。
+func authenticatedURL(platform string, repo *createdRepo, token string) string {
+	switch platform {
+	case PlatformGitHub:
+		// GitHub 用任意用户名 + token 作为密码即可
+		return fmt.Sprintf("https://x-access-token:%s@github.com/%s/%s.git", token, repo.owner, repo.name)
+	default:
+		// Gitee 用 oauth2 作为用户名
+		return fmt.Sprintf("https://oauth2:%s@gitee.com/%s/%s.git", token, repo.owner, repo.name)
+	}
+}
+
+// apiError 从平台返回的 JSON 里提取可读的错误信息。
+func apiError(raw []byte) string {
+	var m map[string]interface{}
+	if json.Unmarshal(raw, &m) == nil {
+		for _, k := range []string{"message", "error_description", "error"} {
+			if v, ok := m[k]; ok {
+				if s, ok := v.(string); ok && s != "" {
+					return s
+				}
+			}
+		}
+	}
+	s := strings.TrimSpace(string(raw))
+	if len(s) > 300 {
+		s = s[:300]
+	}
+	if s == "" {
+		return "（平台没有返回错误详情）"
+	}
+	return s
+}
+
+// redact 把命令里的 token 换成 ***，避免显示或记录到日志里。
+func redact(argv []string) []string {
+	out := make([]string, len(argv))
+	for i, a := range argv {
+		if strings.Contains(a, "@") && (strings.HasPrefix(a, "https://") || strings.Contains(a, "token")) {
+			// https://user:token@host/... -> https://***@host/...
+			if at := strings.LastIndex(a, "@"); at != -1 {
+				scheme := "https://"
+				if i := strings.Index(a, "://"); i != -1 {
+					scheme = a[:i+3]
+				}
+				out[i] = scheme + "***@" + a[at+1:]
+				continue
+			}
+		}
+		out[i] = a
+	}
+	return out
+}
+
+func validRepoName(name string) bool {
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	for _, r := range name {
+		ok := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-'
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func urlQueryEscape(s string) string {
+	// 只处理 token / 描述里常见的字符，避免引入额外依赖
+	replacer := strings.NewReplacer(
+		"%", "%25", "&", "%26", "+", "%2B", "=", "%3D",
+		"#", "%23", " ", "%20", "?", "%3F", "/", "%2F",
+	)
+	return replacer.Replace(s)
+}
+
+// gitRun 执行 git 命令并返回合并输出。调用方需持有 e.mu。
+func (e *Engine) gitRun(args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = e.repoPath
+	cmd.Env = append(cmd.Environ(), "GIT_TERMINAL_PROMPT=0")
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}

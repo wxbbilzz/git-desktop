@@ -11,6 +11,11 @@ import (
 // 这是用户的真实场景：刚装好 git 的用户没有 user.name / user.email，
 // 直接点提交会得到一句英文 fatal。软件必须能主动发现并引导。
 func TestIdentityFlow(t *testing.T) {
+	// 隔离全局配置，让测试不受开发者本机 git 身份的影响，
+	// 这样才能稳定地从「没有身份」这个起点开始验证。
+	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	t.Setenv("GIT_CONFIG_SYSTEM", "/dev/null")
+
 	dir := t.TempDir()
 
 	run := func(args ...string) {

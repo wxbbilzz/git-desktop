@@ -46,6 +46,30 @@ export namespace engine {
 	        this.extraInfo = source["extraInfo"];
 	    }
 	}
+	export class CommitFileDTO {
+	    path: string;
+	    oldPath: string;
+	    status: string;
+	    statusLabel: string;
+	    kind: string;
+	    additions: number;
+	    deletions: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CommitFileDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.oldPath = source["oldPath"];
+	        this.status = source["status"];
+	        this.statusLabel = source["statusLabel"];
+	        this.kind = source["kind"];
+	        this.additions = source["additions"];
+	        this.deletions = source["deletions"];
+	    }
+	}
 	export class FileDTO {
 	    path: string;
 	    previousPath: string;
@@ -197,6 +221,49 @@ export namespace engine {
 		    return a;
 		}
 	}
+	export class PublishResult {
+	    repoUrl: string;
+	    cloneUrl: string;
+	    command: string;
+	    output: string;
+	    ok: boolean;
+	    error: string;
+	    snapshot?: RepoSnapshot;
+	
+	    static createFrom(source: any = {}) {
+	        return new PublishResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.repoUrl = source["repoUrl"];
+	        this.cloneUrl = source["cloneUrl"];
+	        this.command = source["command"];
+	        this.output = source["output"];
+	        this.ok = source["ok"];
+	        this.error = source["error"];
+	        this.snapshot = this.convertValues(source["snapshot"], RepoSnapshot);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class RunResult {
 	    operationId: string;
 	    command: string;

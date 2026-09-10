@@ -1285,3 +1285,101 @@ body {
   background: rgba(0, 0, 0, 0.25);
   font-size: 10.5px;
 }
+
+/* diff 面板的双栏布局（提交模式：文件列表 + 单文件改动） */
+.diff-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.diff-body.split .diff {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.diff-filelist {
+  flex: 0 0 auto;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-right: 1px solid var(--border);
+  overflow: auto;
+}
+
+.diff-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-item);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.diff-file:hover {
+  background: var(--panel-2);
+}
+
+.diff-file.active {
+  background: var(--accent-soft);
+  border-color: rgba(124, 108, 255, 0.4);
+}
+
+.diff-file-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.diff-file-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-file-dir {
+  font-size: 10.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 上传对话框 */
+.publish-panel {
+  width: min(620px, 100%);
+  height: auto;
+  max-height: min(820px, 100%);
+  overflow: auto;
+}
+
+.publish-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+}
+
+.publish-body a {
+  color: var(--accent-2);
+  text-decoration: none;
+}
+
+.publish-body a:hover {
+  text-decoration: underline;
+}
+
+.publish-body .tabs {
+  align-self: flex-start;
+}

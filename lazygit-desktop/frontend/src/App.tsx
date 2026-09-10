@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, isDesktop } from "./api";
-import type { RepoSnapshot, SidebarTab } from "./types";
+import type { CommitFileDTO, RepoSnapshot, SidebarTab } from "./types";
 import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
 import { DiffPanel } from "./components/DiffPanel";
@@ -8,6 +8,7 @@ import { CommitPanel } from "./components/CommitPanel";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { Welcome } from "./components/Welcome";
 import { Operations } from "./components/Operations";
+import { PublishDialog } from "./components/PublishDialog";
 
 // App 只负责“编排”：持有界面状态、调用 api、把结果分发到各面板。
 // 它不包含任何 git 逻辑 —— 那是引擎的职责。
@@ -23,6 +24,9 @@ export default function App() {
 
   const [diff, setDiff] = useState("");
   const [diffLoading, setDiffLoading] = useState(false);
+  // 提交模式下：这次提交涉及的文件，以及当前正在查看的那个
+  const [commitFiles, setCommitFiles] = useState<CommitFileDTO[]>([]);
+  const [activeCommitFile, setActiveCommitFile] = useState<string | null>(null);
 
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
@@ -31,6 +35,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   // 是否打开「Git 操作」面板（全命令入口）
   const [showOps, setShowOps] = useState(false);
+  // 是否打开「上传到托管平台」对话框
+  const [showPublish, setShowPublish] = useState(false);
 
   /** 统一处理一次“动作 → 新快照”的往返，并维护忙碌态与错误提示。 */
   const run = useCallback(
@@ -59,20 +65,72 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 选中目标变化时拉取对应的 diff
+  // 选中某个提交时，先取「这次提交改了哪些文件」，
+  // 并默认选中第一个，这样用户点开提交就能直接看到内容。
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!selectedCommit) {
+      setCommitFiles([]);
+      setActiveCommitFile(null);
+      return;
+    }
+
+    setDiffLoading(true);
+    setActiveCommitFile(null);
+    setDiff("");
+    void api
+      .commitFiles(selectedCommit)
+      .then((files) => {
+        if (cancelled) return;
+        setCommitFiles(files);
+        // 默认打开第一个文件
+        if (files.length > 0) setActiveCommitFile(files[0].path);
+        else setDiffLoading(false);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setCommitFiles([]);
+        setDiffLoading(false);
+        setError(e instanceof Error ? e.message : String(e));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCommit]);
+
+  // 拉取当前应该显示的 diff：
+  //   - 工作区/暂存区模式：选中文件的 diff
+  //   - 提交模式：本次提交里「选中的那个文件」的 diff
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      if (!selectedPath && !selectedCommit) {
+      if (selectedCommit) {
+        if (!activeCommitFile) return;
+        setDiffLoading(true);
+        try {
+          const text = await api.commitFileDiff(selectedCommit, activeCommitFile);
+          if (!cancelled) setDiff(text);
+        } catch (e) {
+          if (!cancelled) {
+            setDiff("");
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        } finally {
+          if (!cancelled) setDiffLoading(false);
+        }
+        return;
+      }
+
+      if (!selectedPath) {
         setDiff("");
         return;
       }
       setDiffLoading(true);
       try {
-        const text = selectedCommit
-          ? await api.commitDiff(selectedCommit)
-          : await api.fileDiff(selectedPath as string, selectedStaged);
+        const text = await api.fileDiff(selectedPath, selectedStaged);
         if (!cancelled) setDiff(text);
       } catch (e) {
         if (!cancelled) {
@@ -88,7 +146,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedPath, selectedStaged, selectedCommit]);
+  }, [selectedPath, selectedStaged, selectedCommit, activeCommitFile]);
 
   // 仓库变了（比如切换仓库）后，之前的选中项可能已经不存在，清掉更安全
   useEffect(() => {
@@ -156,6 +214,7 @@ export default function App() {
         onOpenRepo={handleOpenRepo}
         onHome={() => setSnapshot(null)}
         onOperations={() => setShowOps(true)}
+        onPublish={() => setShowPublish(true)}
       />
 
       {(busy || error || !isDesktop()) && (
@@ -196,6 +255,9 @@ export default function App() {
           diff={diff}
           loading={diffLoading}
           busy={busy}
+          commitFiles={commitFiles}
+          activeCommitFile={activeCommitFile}
+          onSelectCommitFile={setActiveCommitFile}
           onStage={() => {
             // 显式守卫：闭包里不能依赖外层 selectedPath 的类型收窄
             if (!selectedPath) return;
@@ -233,6 +295,16 @@ export default function App() {
           />
         </div>
       </div>
+
+      {showPublish && (
+        <PublishDialog
+          snapshot={snapshot}
+          onClose={() => setShowPublish(false)}
+          onPublished={(r) => {
+            if (r.snapshot) setSnapshot(r.snapshot);
+          }}
+        />
+      )}
 
       {showOps && (
         <Operations

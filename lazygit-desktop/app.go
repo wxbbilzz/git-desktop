@@ -226,3 +226,49 @@ func (a *App) Identity() (string, string) {
 func (a *App) SetIdentity(name string, email string, global bool) (*engine.RepoSnapshot, error) {
 	return a.engine.SetIdentity(name, email, global)
 }
+
+// ---------------------------------------------------------------------------
+// 按文件查看某个提交
+// ---------------------------------------------------------------------------
+
+// CommitFiles 列出某个提交改动的文件。
+func (a *App) CommitFiles(hash string) ([]engine.CommitFileDTO, error) {
+	return a.engine.CommitFiles(hash)
+}
+
+// CommitFileDiff 取某个提交里单个文件的 diff。
+func (a *App) CommitFileDiff(hash string, path string) (string, error) {
+	return a.engine.CommitFileDiff(hash, path)
+}
+
+// ---------------------------------------------------------------------------
+// 上传到 GitHub / Gitee
+// ---------------------------------------------------------------------------
+
+// Publish 把当前仓库上传到托管平台（创建远端仓库 + 推送）。
+//
+// 过程中会通过 "publish:progress" 事件推送当前步骤，前端可以显示进度。
+func (a *App) Publish(
+	platform string,
+	token string,
+	name string,
+	description string,
+	private bool,
+	storeToken bool,
+) (*engine.PublishResult, error) {
+	return a.engine.Publish(
+		engine.PublishRequest{
+			Platform:    platform,
+			Token:       token,
+			Name:        name,
+			Description: description,
+			Private:     private,
+			StoreToken:  storeToken,
+		},
+		func(step string) {
+			if a.ctx != nil {
+				runtime.EventsEmit(a.ctx, "publish:progress", step)
+			}
+		},
+	)
+}

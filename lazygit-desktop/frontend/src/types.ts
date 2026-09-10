@@ -108,3 +108,25 @@ export interface RunResult {
   error: string;
   snapshot: RepoSnapshot | null;
 }
+
+/** 某个提交里改动的一个文件。 */
+export interface CommitFileDTO {
+  path: string;
+  oldPath: string;
+  status: string;
+  statusLabel: string;
+  kind: string;
+  additions: number;
+  deletions: number;
+}
+
+/** 上传到托管平台的结果。 */
+export interface PublishResult {
+  repoUrl: string;
+  cloneUrl: string;
+  command: string;
+  output: string;
+  ok: boolean;
+  error: string;
+  snapshot: RepoSnapshot | null;
+}

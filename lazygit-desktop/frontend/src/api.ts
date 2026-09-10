@@ -9,7 +9,9 @@
 
 import type {
   CloneProgress,
+  CommitFileDTO,
   OperationSummary,
+  PublishResult,
   RepoSnapshot,
   RunResult,
 } from "./types";
@@ -41,6 +43,8 @@ interface DesktopBridge {
 
   FileDiff(path: string, staged: boolean): Promise<string>;
   CommitDiff(hash: string): Promise<string>;
+  CommitFiles(hash: string): Promise<CommitFileDTO[]>;
+  CommitFileDiff(hash: string, path: string): Promise<string>;
   StageFile(path: string): Promise<RepoSnapshot>;
   UnstageFile(path: string): Promise<RepoSnapshot>;
   StageAll(): Promise<RepoSnapshot>;
@@ -61,6 +65,16 @@ interface DesktopBridge {
   Operations(): Promise<OperationSummary[]>;
   RunOperation(id: string, args: Record<string, string>): Promise<RunResult>;
   RunRawGit(command: string): Promise<RunResult>;
+
+  // 上传到托管平台
+  Publish(
+    platform: string,
+    token: string,
+    name: string,
+    description: string,
+    privateRepo: boolean,
+    storeToken: boolean,
+  ): Promise<PublishResult>;
 }
 
 declare global {
@@ -82,12 +96,26 @@ export function isDesktop(): boolean {
   return !!bridge();
 }
 
+/** 订阅上传进度事件；返回取消订阅的函数。 */
+export function onPublishProgress(cb: (step: string) => void): () => void {
+  const rt = typeof window !== "undefined" ? window.runtime : undefined;
+  if (!rt?.EventsOn) return () => {};
+  return rt.EventsOn("publish:progress", cb as (...args: any[]) => void);
+}
+
 /** 订阅克隆进度事件；返回取消订阅的函数。 */
 export function onCloneProgress(cb: (p: CloneProgress) => void): () => void {
   const rt = typeof window !== "undefined" ? window.runtime : undefined;
   if (!rt?.EventsOn) return () => {};
   return rt.EventsOn("clone:progress", cb as (...args: any[]) => void);
 }
+
+/** 浏览器预览模式下模拟的提交文件列表。 */
+const MOCK_COMMIT_FILES: CommitFileDTO[] = [
+  { path: "pkg/engine/session.go", oldPath: "", status: "M", statusLabel: "修改", kind: "modified", additions: 24, deletions: 6 },
+  { path: "frontend/src/components/DiffPanel.tsx", oldPath: "", status: "A", statusLabel: "新增", kind: "new", additions: 96, deletions: 0 },
+  { path: "old/legacy.ts", oldPath: "old/legacy.ts", status: "R100", statusLabel: "重命名", kind: "renamed", additions: 2, deletions: 2 },
+];
 
 /** 浏览器预览模式下的假路径拼接。 */
 function fakeJoin(dir: string, name: string): string {
@@ -174,6 +202,18 @@ export const api = {
   async commitDiff(hash: string): Promise<string> {
     const b = bridge();
     return b ? b.CommitDiff(hash) : mockDiff(hash, false);
+  },
+
+  async commitFiles(hash: string): Promise<CommitFileDTO[]> {
+    const b = bridge();
+    if (!b) return MOCK_COMMIT_FILES;
+    return b.CommitFiles(hash);
+  },
+
+  async commitFileDiff(hash: string, path: string): Promise<string> {
+    const b = bridge();
+    if (!b) return mockDiff(path, false);
+    return b.CommitFileDiff(hash, path);
   },
 
   async stageFile(path: string): Promise<RepoSnapshot> {
@@ -281,5 +321,28 @@ export const api = {
       };
     }
     return b.RunRawGit(command);
+  },
+
+  async publish(
+    platform: string,
+    token: string,
+    name: string,
+    description: string,
+    privateRepo: boolean,
+    storeToken: boolean,
+  ): Promise<PublishResult> {
+    const b = bridge();
+    if (!b) {
+      return {
+        repoUrl: "https://example.com/demo",
+        cloneUrl: "",
+        command: "git push（演示模式不执行）",
+        output: "浏览器预览模式：这里不会真正上传。",
+        ok: true,
+        error: "",
+        snapshot: null,
+      };
+    }
+    return b.Publish(platform, token, name, description, privateRepo, storeToken);
   },
 };

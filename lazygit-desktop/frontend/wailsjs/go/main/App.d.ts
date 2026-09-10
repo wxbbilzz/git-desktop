@@ -12,6 +12,10 @@ export function Commit(arg1:string,arg2:string):Promise<engine.RepoSnapshot>;
 
 export function CommitDiff(arg1:string):Promise<string>;
 
+export function CommitFileDiff(arg1:string,arg2:string):Promise<string>;
+
+export function CommitFiles(arg1:string):Promise<Array<engine.CommitFileDTO>>;
+
 export function CreateBranch(arg1:string):Promise<engine.RepoSnapshot>;
 
 export function CreateRepo(arg1:string,arg2:string,arg3:string):Promise<engine.RepoSnapshot>;
@@ -37,6 +41,8 @@ export function Operations():Promise<Array<engine.OperationSummary>>;
 export function PickDirectory(arg1:string):Promise<string>;
 
 export function PickRepo():Promise<string>;
+
+export function Publish(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean,arg6:boolean):Promise<engine.PublishResult>;
 
 export function Pull():Promise<engine.RepoSnapshot>;
 

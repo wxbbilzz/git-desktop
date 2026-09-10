@@ -22,6 +22,14 @@ export function CommitDiff(arg1) {
   return window['go']['main']['App']['CommitDiff'](arg1);
 }
 
+export function CommitFileDiff(arg1, arg2) {
+  return window['go']['main']['App']['CommitFileDiff'](arg1, arg2);
+}
+
+export function CommitFiles(arg1) {
+  return window['go']['main']['App']['CommitFiles'](arg1);
+}
+
 export function CreateBranch(arg1) {
   return window['go']['main']['App']['CreateBranch'](arg1);
 }
@@ -72,6 +80,10 @@ export function PickDirectory(arg1) {
 
 export function PickRepo() {
   return window['go']['main']['App']['PickRepo']();
+}
+
+export function Publish(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['Publish'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function Pull() {
