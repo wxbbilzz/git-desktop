@@ -10,6 +10,8 @@ import {
   IconPush,
   IconRefresh,
   IconUpload,
+  IconVolumeOn,
+  IconVolumeOff,
 } from "./icons";
 
 interface Props {
@@ -23,6 +25,8 @@ interface Props {
   onHome: () => void;
   onOperations: () => void;
   onPublish: () => void;
+  soundOn: boolean;
+  onToggleSound: () => void;
 }
 
 export function TopBar({
@@ -36,6 +40,8 @@ export function TopBar({
   onHome,
   onOperations,
   onPublish,
+  soundOn,
+  onToggleSound,
 }: Props) {
   const disabled = busy !== null;
 
@@ -102,6 +108,11 @@ export function TopBar({
       >
         Push
       </PillButton>
+      <PillButton
+        icon={soundOn ? <IconVolumeOn /> : <IconVolumeOff />}
+        onClick={onToggleSound}
+        title={soundOn ? "关闭音效" : "开启音效"}
+      />
       <PillButton
         icon={<IconRefresh />}
         onClick={onRefresh}

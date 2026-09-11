@@ -1383,3 +1383,365 @@ body {
 .publish-body .tabs {
   align-self: flex-start;
 }
+
+/* ==========================================================================
+   文件树
+   ========================================================================== */
+
+.tree {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px 10px;
+}
+
+.tree-dir {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-item);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 560;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.tree-dir:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.tree-chevron,
+.tree-dir-icon {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.tree-chevron svg {
+  width: 11px;
+  height: 11px;
+}
+
+.tree-dir-icon svg {
+  width: 13px;
+  height: 13px;
+  color: var(--accent-2);
+  opacity: 0.85;
+}
+
+.tree-dir-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+}
+
+.tree-dir-count {
+  flex: 0 0 auto;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--panel-3);
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 树里的文件行比平铺列表紧一些 */
+.tree-file {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+/* ==========================================================================
+   行级暂存：可勾选的 diff 行
+   ========================================================================== */
+
+.diff-line.pickable {
+  cursor: pointer;
+  position: relative;
+}
+
+.diff-line.pickable:hover {
+  outline: 1px solid rgba(124, 108, 255, 0.35);
+  outline-offset: -1px;
+}
+
+.diff-line.picked {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.diff-check {
+  flex: 0 0 auto;
+  width: 26px;
+  text-align: center;
+  color: var(--accent-2);
+  font-size: 13px;
+  font-weight: 700;
+  user-select: none;
+}
+
+.diff-line.picked .diff-text {
+  filter: brightness(1.35);
+}
+
+.patch-hunk {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 12px;
+}
+
+.patch-hunk .diff-text {
+  flex: 1 1 auto;
+}
+
+.hunk-select {
+  flex: 0 0 auto;
+  border: 1px solid rgba(124, 108, 255, 0.45);
+  background: var(--accent-soft);
+  color: var(--accent-2);
+  font-family: inherit;
+  font-size: 10.5px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.hunk-select:hover {
+  background: rgba(124, 108, 255, 0.28);
+}
+
+/* ==========================================================================
+   提交图
+   ========================================================================== */
+
+.commit {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 0;
+  min-height: 46px;
+}
+
+.commit-graph {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.commit-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 9px 10px 9px 0;
+}
+
+.commit:hover .commit-graph circle {
+  filter: brightness(1.25);
+}
+
+/* ==========================================================================
+   视觉增强层
+   在基础样式之上做「质感」：渐变背景、玻璃拟态、发光、动效。
+   所有效果都保持克制，不影响可读性和性能。
+   ========================================================================== */
+
+/* 背景：一层极淡的径向光晕，让界面不那么平 */
+body {
+  background:
+    radial-gradient(1200px 700px at 12% -10%, rgba(124, 108, 255, 0.13), transparent 60%),
+    radial-gradient(900px 600px at 105% 5%, rgba(61, 220, 151, 0.08), transparent 55%),
+    radial-gradient(700px 700px at 50% 120%, rgba(90, 169, 255, 0.07), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* 面板：轻微玻璃感 + 顶部高光 */
+.panel {
+  background: linear-gradient(180deg, rgba(28, 31, 42, 0.92), rgba(20, 22, 30, 0.92));
+  backdrop-filter: blur(14px) saturate(130%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 12px 30px rgba(0, 0, 0, 0.28);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.panel:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 顶栏：更明显的高光与投影 */
+.topbar {
+  background: linear-gradient(180deg, rgba(32, 35, 48, 0.95), rgba(22, 24, 32, 0.95));
+  backdrop-filter: blur(16px) saturate(140%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 10px 26px rgba(0, 0, 0, 0.3);
+}
+
+/* 品牌点：呼吸式发光 + 缓慢色相漂移 */
+.brand-dot {
+  background: conic-gradient(from 0deg, #9a8cff, #3ddc97, #5aa9ff, #9a8cff);
+  animation: brand-spin 6s linear infinite, brand-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes brand-spin {
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+
+@keyframes brand-pulse {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(124, 108, 255, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(124, 108, 255, 0.85);
+  }
+}
+
+/* 主按钮：渐变 + 悬停发光 + 轻微上浮 */
+.pill.primary {
+  background: linear-gradient(135deg, #9a8cff 0%, #7c6cff 50%, #6a58f0 100%);
+  background-size: 160% 160%;
+  transition: background-position 0.4s ease, box-shadow 0.2s ease, transform 0.1s ease;
+  box-shadow: 0 6px 20px rgba(124, 108, 255, 0.35);
+}
+
+.pill.primary:hover:not(:disabled) {
+  background-position: 100% 0;
+  box-shadow: 0 8px 26px rgba(124, 108, 255, 0.5);
+}
+
+/* 成功按钮：一点绿光 */
+.pill.success:hover:not(:disabled) {
+  box-shadow: 0 0 18px rgba(61, 220, 151, 0.28);
+}
+
+/* 危险按钮：一点红光 */
+.pill.danger:hover:not(:disabled) {
+  box-shadow: 0 0 18px rgba(255, 107, 129, 0.28);
+}
+
+/* 激活的标签：发光 */
+.tab.active {
+  box-shadow: 0 4px 16px rgba(124, 108, 255, 0.45);
+}
+
+/* 选中行：左侧发光条 + 平滑过渡 */
+.row.selected,
+.commit.selected,
+.diff-file.active,
+.ops-item.active {
+  box-shadow: inset 3px 0 0 var(--accent), 0 0 0 1px rgba(124, 108, 255, 0.18);
+}
+
+.row,
+.commit,
+.diff-file,
+.ops-item,
+.choice {
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.18s ease,
+    transform 0.12s ease;
+}
+
+/* 文件/提交行悬停时轻微右移，产生「被拾起」的感觉 */
+.row:hover,
+.diff-file:hover,
+.commit:hover {
+  transform: translateX(1px);
+}
+
+/* 徽标：小圆角 + 更精致 */
+.badge {
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+/* 输入框聚焦：外发光 */
+.field:focus {
+  box-shadow:
+    0 0 0 3px rgba(124, 108, 255, 0.16),
+    0 0 22px rgba(124, 108, 255, 0.22);
+}
+
+/* 滚动条：悬停时更亮 */
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 108, 255, 0.45);
+  background-clip: content-box;
+}
+
+/* 遮罩：加一点渐变，不要纯黑 */
+.ops-overlay {
+  background:
+    radial-gradient(700px 500px at 50% 0%, rgba(124, 108, 255, 0.12), transparent 70%),
+    rgba(6, 7, 11, 0.68);
+}
+
+/* 对话框：更强的投影 */
+.ops-panel {
+  background: linear-gradient(180deg, rgba(30, 33, 45, 0.98), rgba(20, 22, 30, 0.98));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.07) inset,
+    0 40px 90px rgba(0, 0, 0, 0.6);
+  animation: panel-in 0.18s ease-out;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 载入中的骨架：给空状态一点动感 */
+.empty-title {
+  background: linear-gradient(90deg, var(--text-dim), var(--text), var(--text-dim));
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: text-shimmer 3.2s linear infinite;
+}
+
+@keyframes text-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* 主按钮在忙碌时的呼吸感 */
+.pill:disabled {
+  transition: opacity 0.2s ease;
+}
+
+/* 尊重系统的「减少动态效果」偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

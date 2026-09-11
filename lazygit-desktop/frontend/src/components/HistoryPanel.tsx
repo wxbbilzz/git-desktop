@@ -1,4 +1,7 @@
+import { useMemo } from "react";
 import type { CommitDTO } from "../types";
+import { computeGraph } from "../commitGraph";
+import { CommitGraph } from "./CommitGraph";
 
 interface Props {
   commits: CommitDTO[];
@@ -7,6 +10,9 @@ interface Props {
 }
 
 export function HistoryPanel({ commits, selectedHash, onSelect }: Props) {
+  // 泳道图按提交列表算一次即可
+  const rows = useMemo(() => computeGraph(commits), [commits]);
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -18,12 +24,14 @@ export function HistoryPanel({ commits, selectedHash, onSelect }: Props) {
 
       <div className="panel-body">
         <div className="commit-list">
-          {commits.map((c) => (
+          {commits.map((c, i) => (
             <div
               key={c.hash}
               className={"commit" + (selectedHash === c.hash ? " selected" : "")}
               onClick={() => onSelect(c.hash)}
             >
+              {rows[i] && <CommitGraph row={rows[i]} />}
+              <div className="commit-main">
               <div className="commit-subject" title={c.subject}>
                 {c.subject}
               </div>
@@ -38,6 +46,7 @@ export function HistoryPanel({ commits, selectedHash, onSelect }: Props) {
                     {c.extraInfo}
                   </span>
                 )}
+              </div>
               </div>
             </div>
           ))}

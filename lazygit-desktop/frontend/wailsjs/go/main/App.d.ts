@@ -30,6 +30,8 @@ export function Fetch():Promise<engine.RepoSnapshot>;
 
 export function FileDiff(arg1:string,arg2:boolean):Promise<string>;
 
+export function FilePatchLines(arg1:string,arg2:boolean):Promise<engine.FilePatch>;
+
 export function Identity():Promise<string|string>;
 
 export function JoinPath(arg1:string,arg2:string):Promise<string>;
@@ -48,6 +50,10 @@ export function Pull():Promise<engine.RepoSnapshot>;
 
 export function Push():Promise<engine.RepoSnapshot>;
 
+export function ReadConflictFile(arg1:string):Promise<engine.ConflictFile>;
+
+export function ResolveConflicts(arg1:string,arg2:Array<engine.ConflictChoice>):Promise<engine.RepoSnapshot>;
+
 export function RunOperation(arg1:string,arg2:Record<string, string>):Promise<engine.RunResult>;
 
 export function RunRawGit(arg1:string):Promise<engine.RunResult>;
@@ -59,6 +65,20 @@ export function Snapshot():Promise<engine.RepoSnapshot>;
 export function StageAll():Promise<engine.RepoSnapshot>;
 
 export function StageFile(arg1:string):Promise<engine.RepoSnapshot>;
+
+export function StageLines(arg1:string,arg2:boolean,arg3:Array<number>):Promise<engine.RepoSnapshot>;
+
+export function StashApply(arg1:number):Promise<engine.RepoSnapshot>;
+
+export function StashDrop(arg1:number):Promise<engine.RepoSnapshot>;
+
+export function StashPop(arg1:number):Promise<engine.RepoSnapshot>;
+
+export function StashSave(arg1:string,arg2:boolean):Promise<engine.RepoSnapshot>;
+
+export function StashShow(arg1:number):Promise<string>;
+
+export function Stashes():Promise<Array<engine.StashEntryDTO>>;
 
 export function UnstageAll():Promise<engine.RepoSnapshot>;
 

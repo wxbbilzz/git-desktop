@@ -58,6 +58,10 @@ export function FileDiff(arg1, arg2) {
   return window['go']['main']['App']['FileDiff'](arg1, arg2);
 }
 
+export function FilePatchLines(arg1, arg2) {
+  return window['go']['main']['App']['FilePatchLines'](arg1, arg2);
+}
+
 export function Identity() {
   return window['go']['main']['App']['Identity']();
 }
@@ -94,6 +98,14 @@ export function Push() {
   return window['go']['main']['App']['Push']();
 }
 
+export function ReadConflictFile(arg1) {
+  return window['go']['main']['App']['ReadConflictFile'](arg1);
+}
+
+export function ResolveConflicts(arg1, arg2) {
+  return window['go']['main']['App']['ResolveConflicts'](arg1, arg2);
+}
+
 export function RunOperation(arg1, arg2) {
   return window['go']['main']['App']['RunOperation'](arg1, arg2);
 }
@@ -116,6 +128,34 @@ export function StageAll() {
 
 export function StageFile(arg1) {
   return window['go']['main']['App']['StageFile'](arg1);
+}
+
+export function StageLines(arg1, arg2, arg3) {
+  return window['go']['main']['App']['StageLines'](arg1, arg2, arg3);
+}
+
+export function StashApply(arg1) {
+  return window['go']['main']['App']['StashApply'](arg1);
+}
+
+export function StashDrop(arg1) {
+  return window['go']['main']['App']['StashDrop'](arg1);
+}
+
+export function StashPop(arg1) {
+  return window['go']['main']['App']['StashPop'](arg1);
+}
+
+export function StashSave(arg1, arg2) {
+  return window['go']['main']['App']['StashSave'](arg1, arg2);
+}
+
+export function StashShow(arg1) {
+  return window['go']['main']['App']['StashShow'](arg1);
+}
+
+export function Stashes() {
+  return window['go']['main']['App']['Stashes']();
 }
 
 export function UnstageAll() {

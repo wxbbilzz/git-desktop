@@ -30,6 +30,7 @@ export namespace engine {
 	    when: string;
 	    tags: string[];
 	    extraInfo: string;
+	    parents: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new CommitDTO(source);
@@ -44,6 +45,7 @@ export namespace engine {
 	        this.when = source["when"];
 	        this.tags = source["tags"];
 	        this.extraInfo = source["extraInfo"];
+	        this.parents = source["parents"];
 	    }
 	}
 	export class CommitFileDTO {
@@ -69,6 +71,84 @@ export namespace engine {
 	        this.additions = source["additions"];
 	        this.deletions = source["deletions"];
 	    }
+	}
+	export class ConflictBlock {
+	    index: number;
+	    startLine: number;
+	    endLine: number;
+	    ours: string[];
+	    theirs: string[];
+	    base: string[];
+	    hasBase: boolean;
+	    labelOurs: string;
+	    labelTheirs: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConflictBlock(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.index = source["index"];
+	        this.startLine = source["startLine"];
+	        this.endLine = source["endLine"];
+	        this.ours = source["ours"];
+	        this.theirs = source["theirs"];
+	        this.base = source["base"];
+	        this.hasBase = source["hasBase"];
+	        this.labelOurs = source["labelOurs"];
+	        this.labelTheirs = source["labelTheirs"];
+	    }
+	}
+	export class ConflictChoice {
+	    blockIndex: number;
+	    choice: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConflictChoice(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.blockIndex = source["blockIndex"];
+	        this.choice = source["choice"];
+	    }
+	}
+	export class ConflictFile {
+	    path: string;
+	    lines: string[];
+	    blocks: ConflictBlock[];
+	    markerSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConflictFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.lines = source["lines"];
+	        this.blocks = this.convertValues(source["blocks"], ConflictBlock);
+	        this.markerSize = source["markerSize"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class FileDTO {
 	    path: string;
@@ -101,6 +181,66 @@ export namespace engine {
 	        this.linesAdded = source["linesAdded"];
 	        this.linesDeleted = source["linesDeleted"];
 	    }
+	}
+	export class PatchLineDTO {
+	    index: number;
+	    kind: string;
+	    text: string;
+	    marker: string;
+	    oldNo: number;
+	    newNo: number;
+	    selectable: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PatchLineDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.index = source["index"];
+	        this.kind = source["kind"];
+	        this.text = source["text"];
+	        this.marker = source["marker"];
+	        this.oldNo = source["oldNo"];
+	        this.newNo = source["newNo"];
+	        this.selectable = source["selectable"];
+	    }
+	}
+	export class FilePatch {
+	    path: string;
+	    staged: boolean;
+	    lines: PatchLineDTO[];
+	    hasChanges: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new FilePatch(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.staged = source["staged"];
+	        this.lines = this.convertValues(source["lines"], PatchLineDTO);
+	        this.hasChanges = source["hasChanges"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Param {
 	    name: string;
@@ -172,6 +312,7 @@ export namespace engine {
 		    return a;
 		}
 	}
+	
 	
 	export class RepoSnapshot {
 	    repoPath: string;
@@ -303,6 +444,24 @@ export namespace engine {
 		    }
 		    return a;
 		}
+	}
+	export class StashEntryDTO {
+	    index: number;
+	    ref: string;
+	    message: string;
+	    branch: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StashEntryDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.index = source["index"];
+	        this.ref = source["ref"];
+	        this.message = source["message"];
+	        this.branch = source["branch"];
+	    }
 	}
 
 }

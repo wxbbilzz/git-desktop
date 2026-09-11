@@ -32,6 +32,8 @@ export interface CommitDTO {
   when: string;
   tags: string[];
   extraInfo: string;
+  /** 父提交哈希，提交图用它算泳道 */
+  parents: string[];
 }
 
 export interface BranchDTO {
@@ -129,4 +131,55 @@ export interface PublishResult {
   ok: boolean;
   error: string;
   snapshot: RepoSnapshot | null;
+}
+
+/** patch 里的一行（行级暂存用）。 */
+export interface PatchLineDTO {
+  index: number;
+  kind: "header" | "hunk" | "addition" | "deletion" | "context" | "meta" | "other" | string;
+  text: string;
+  marker: string;
+  oldNo: number;
+  newNo: number;
+  selectable: boolean;
+}
+
+export interface FilePatch {
+  path: string;
+  staged: boolean;
+  lines: PatchLineDTO[];
+  hasChanges: boolean;
+}
+
+/** 文件里的一处合并冲突。 */
+export interface ConflictBlock {
+  index: number;
+  startLine: number;
+  endLine: number;
+  ours: string[];
+  theirs: string[];
+  base: string[];
+  hasBase: boolean;
+  labelOurs: string;
+  labelTheirs: string;
+}
+
+export interface ConflictFile {
+  path: string;
+  lines: string[];
+  blocks: ConflictBlock[];
+  markerSize: number;
+}
+
+export interface ConflictChoice {
+  blockIndex: number;
+  choice: "ours" | "theirs" | "both" | "base";
+}
+
+/** 一条储藏记录。 */
+export interface StashEntryDTO {
+  index: number;
+  ref: string;
+  message: string;
+  branch: string;
 }

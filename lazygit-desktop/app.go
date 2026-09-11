@@ -272,3 +272,55 @@ func (a *App) Publish(
 		},
 	)
 }
+
+// ---------------------------------------------------------------------------
+// 行级暂存 / 冲突解决 / stash
+// ---------------------------------------------------------------------------
+
+// FilePatchLines 取某个文件 diff 的结构化行，供界面勾选暂存。
+func (a *App) FilePatchLines(path string, staged bool) (*engine.FilePatch, error) {
+	return a.engine.FilePatchLines(path, staged)
+}
+
+// StageLines 暂存或取消暂存选中的行。
+func (a *App) StageLines(path string, staged bool, lineIndices []int) (*engine.RepoSnapshot, error) {
+	return a.engine.StageLines(path, staged, lineIndices)
+}
+
+// ReadConflictFile 解析一个冲突文件。
+func (a *App) ReadConflictFile(path string) (*engine.ConflictFile, error) {
+	return a.engine.ReadConflictFile(path)
+}
+
+// ResolveConflicts 按选择解决冲突。
+func (a *App) ResolveConflicts(path string, choices []engine.ConflictChoice) (*engine.RepoSnapshot, error) {
+	return a.engine.ResolveConflicts(path, choices)
+}
+
+// Stashes 列出储藏记录。
+func (a *App) Stashes() ([]engine.StashEntryDTO, error) {
+	return a.engine.Stashes()
+}
+
+// StashShow 预览某条储藏。
+func (a *App) StashShow(index int) (string, error) {
+	return a.engine.StashShow(index)
+}
+
+// StashSave 储藏当前改动。
+func (a *App) StashSave(message string, includeUntracked bool) (*engine.RepoSnapshot, error) {
+	return a.engine.StashSave(message, includeUntracked)
+}
+
+// StashPop / StashApply / StashDrop 操作某条储藏。
+func (a *App) StashPop(index int) (*engine.RepoSnapshot, error) {
+	return a.engine.StashPop(index)
+}
+
+func (a *App) StashApply(index int) (*engine.RepoSnapshot, error) {
+	return a.engine.StashApply(index)
+}
+
+func (a *App) StashDrop(index int) (*engine.RepoSnapshot, error) {
+	return a.engine.StashDrop(index)
+}

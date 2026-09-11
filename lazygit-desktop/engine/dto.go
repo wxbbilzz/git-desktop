@@ -11,17 +11,17 @@ import (
 // RepoSnapshot 是发往前端的完整状态快照。
 // 前端不持有任何 git 逻辑，只渲染这份数据 —— 这是“引擎 / UI 分离”的关键。
 type RepoSnapshot struct {
-	RepoPath   string     `json:"repoPath"`
-	RepoName   string     `json:"repoName"`
-	Branch     string     `json:"branch"`
-	IsDetached bool       `json:"isDetached"`
+	RepoPath   string `json:"repoPath"`
+	RepoName   string `json:"repoName"`
+	Branch     string `json:"branch"`
+	IsDetached bool   `json:"isDetached"`
 	// 提交身份（user.name / user.email）。任一为空时 git 会拒绝提交
-	IdentityName  string `json:"identityName"`
-	IdentityEmail string `json:"identityEmail"`
-	State      string     `json:"state"` // 空串表示不在 rebase / merge 等特殊状态
-	Files      []FileDTO  `json:"files"`
-	Commits    []CommitDTO `json:"commits"`
-	Branches   []BranchDTO `json:"branches"`
+	IdentityName  string      `json:"identityName"`
+	IdentityEmail string      `json:"identityEmail"`
+	State         string      `json:"state"` // 空串表示不在 rebase / merge 等特殊状态
+	Files         []FileDTO   `json:"files"`
+	Commits       []CommitDTO `json:"commits"`
+	Branches      []BranchDTO `json:"branches"`
 }
 
 // FileDTO 是工作区 / 暂存区里的一个文件。
@@ -51,6 +51,8 @@ type CommitDTO struct {
 	When      string   `json:"when"`
 	Tags      []string `json:"tags"`
 	ExtraInfo string   `json:"extraInfo"` // 类似 "HEAD -> main, origin/main"
+	// Parents 是父提交哈希，界面用它计算提交图的分支泳道
+	Parents []string `json:"parents"`
 }
 
 // BranchDTO 是一个本地分支。
@@ -130,6 +132,7 @@ func toCommitDTO(c *models.Commit) CommitDTO {
 		When:      relativeTime(c.UnixTimestamp),
 		Tags:      tags,
 		ExtraInfo: c.ExtraInfo,
+		Parents:   c.Parents(),
 	}
 }
 

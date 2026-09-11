@@ -66,10 +66,10 @@ func TestBuildArgs(t *testing.T) {
 	}
 
 	args, err := op.BuildArgs(map[string]string{
-		"remote": "origin",
-		"up":     "true",
-		"msg":    "hello world",
-		"need":   "x",
+		"remote":  "origin",
+		"up":      "true",
+		"msg":     "hello world",
+		"need":    "x",
 		"__paths": "a.txt b.txt",
 	})
 	if err != nil {

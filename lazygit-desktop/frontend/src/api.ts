@@ -10,10 +10,14 @@
 import type {
   CloneProgress,
   CommitFileDTO,
+  ConflictChoice,
+  ConflictFile,
+  FilePatch,
   OperationSummary,
   PublishResult,
   RepoSnapshot,
   RunResult,
+  StashEntryDTO,
 } from "./types";
 import {
   mockCheckout,
@@ -65,6 +69,22 @@ interface DesktopBridge {
   Operations(): Promise<OperationSummary[]>;
   RunOperation(id: string, args: Record<string, string>): Promise<RunResult>;
   RunRawGit(command: string): Promise<RunResult>;
+
+  // 行级暂存
+  FilePatchLines(path: string, staged: boolean): Promise<FilePatch>;
+  StageLines(path: string, staged: boolean, lineIndices: number[]): Promise<RepoSnapshot>;
+
+  // 冲突解决
+  ReadConflictFile(path: string): Promise<ConflictFile>;
+  ResolveConflicts(path: string, choices: ConflictChoice[]): Promise<RepoSnapshot>;
+
+  // 储藏
+  Stashes(): Promise<StashEntryDTO[]>;
+  StashShow(index: number): Promise<string>;
+  StashSave(message: string, includeUntracked: boolean): Promise<RepoSnapshot>;
+  StashPop(index: number): Promise<RepoSnapshot>;
+  StashApply(index: number): Promise<RepoSnapshot>;
+  StashDrop(index: number): Promise<RepoSnapshot>;
 
   // 上传到托管平台
   Publish(
@@ -344,5 +364,77 @@ export const api = {
       };
     }
     return b.Publish(platform, token, name, description, privateRepo, storeToken);
+  },
+
+  // ---- 行级暂存 ----
+
+  async filePatchLines(path: string, staged: boolean): Promise<FilePatch> {
+    const b = bridge();
+    if (!b) return { path, staged, lines: [], hasChanges: false };
+    return b.FilePatchLines(path, staged);
+  },
+
+  async stageLines(
+    path: string,
+    staged: boolean,
+    lineIndices: number[],
+  ): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.StageLines(path, staged, lineIndices);
+  },
+
+  // ---- 冲突解决 ----
+
+  async readConflictFile(path: string): Promise<ConflictFile> {
+    const b = bridge();
+    if (!b) return { path, lines: [], blocks: [], markerSize: 7 };
+    return b.ReadConflictFile(path);
+  },
+
+  async resolveConflicts(
+    path: string,
+    choices: ConflictChoice[],
+  ): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.ResolveConflicts(path, choices);
+  },
+
+  // ---- 储藏 ----
+
+  async stashes(): Promise<StashEntryDTO[]> {
+    const b = bridge();
+    return b ? b.Stashes() : [];
+  },
+
+  async stashShow(index: number): Promise<string> {
+    const b = bridge();
+    if (!b) return mockDiff("stash", false);
+    return b.StashShow(index);
+  },
+
+  async stashSave(message: string, includeUntracked: boolean): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.StashSave(message, includeUntracked);
+  },
+
+  async stashPop(index: number): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.StashPop(index);
+  },
+
+  async stashApply(index: number): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.StashApply(index);
+  },
+
+  async stashDrop(index: number): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.StashDrop(index);
   },
 };

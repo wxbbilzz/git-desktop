@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, isDesktop } from "./api";
-import type { CommitFileDTO, RepoSnapshot, SidebarTab } from "./types";
+import { isSoundEnabled, setSoundEnabled, sfx } from "./sound";
+import type { CommitFileDTO, FilePatch, RepoSnapshot, SidebarTab } from "./types";
 import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
 import { DiffPanel } from "./components/DiffPanel";
@@ -27,6 +28,10 @@ export default function App() {
   // 提交模式下：这次提交涉及的文件，以及当前正在查看的那个
   const [commitFiles, setCommitFiles] = useState<CommitFileDTO[]>([]);
   const [activeCommitFile, setActiveCommitFile] = useState<string | null>(null);
+  // 文件模式下的结构化 patch（行级暂存用）
+  const [filePatch, setFilePatch] = useState<FilePatch | null>(null);
+  // 当前勾选的行（索引）
+  const [selectedLines, setSelectedLines] = useState<Set<number>>(new Set());
 
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
@@ -37,6 +42,8 @@ export default function App() {
   const [showOps, setShowOps] = useState(false);
   // 是否打开「上传到托管平台」对话框
   const [showPublish, setShowPublish] = useState(false);
+  // 音效开关
+  const [sound, setSound] = useState(isSoundEnabled());
 
   /** 统一处理一次“动作 → 新快照”的往返，并维护忙碌态与错误提示。 */
   const run = useCallback(
@@ -46,14 +53,44 @@ export default function App() {
       try {
         const next = await fn();
         if (next) setSnapshot(next);
+        playFor(label);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
+        sfx.error();
       } finally {
         setBusy(null);
       }
     },
     [],
   );
+
+  // 按操作语义挑音效：同一个 run() 入口，不同操作给不同反馈
+  const playFor = (label: string) => {
+    switch (label) {
+      case "暂存":
+      case "暂存全部":
+        sfx.stage();
+        break;
+      case "取消暂存":
+      case "取消全部暂存":
+        sfx.unstage();
+        break;
+      case "提交":
+        sfx.commit();
+        break;
+      case "Push":
+      case "Pull":
+      case "Fetch":
+      case "上传":
+        sfx.sync();
+        break;
+      case "丢弃改动":
+        sfx.danger();
+        break;
+      default:
+        sfx.success();
+    }
+  };
 
   const refresh = useCallback(async () => {
     await run("刷新", () => api.snapshot());
@@ -73,6 +110,8 @@ export default function App() {
     if (!selectedCommit) {
       setCommitFiles([]);
       setActiveCommitFile(null);
+      setFilePatch(null);
+      setSelectedLines(new Set());
       return;
     }
 
@@ -129,9 +168,17 @@ export default function App() {
         return;
       }
       setDiffLoading(true);
+      setSelectedLines(new Set());
       try {
-        const text = await api.fileDiff(selectedPath, selectedStaged);
-        if (!cancelled) setDiff(text);
+        // 同时取结构化 patch（供行级暂存）和原始 diff
+        const [text, patch] = await Promise.all([
+          api.fileDiff(selectedPath, selectedStaged),
+          api.filePatchLines(selectedPath, selectedStaged),
+        ]);
+        if (!cancelled) {
+          setDiff(text);
+          setFilePatch(patch);
+        }
       } catch (e) {
         if (!cancelled) {
           setDiff("");
@@ -167,12 +214,14 @@ export default function App() {
   const stagedCount = snapshot.files.filter((f) => f.isStaged).length;
 
   const selectFile = (path: string, staged: boolean) => {
+    sfx.select();
     setSelectedCommit(null);
     setSelectedPath(path);
     setSelectedStaged(staged);
   };
 
   const selectCommit = (hash: string) => {
+    sfx.select();
     setSelectedPath(null);
     setSelectedCommit(hash);
   };
@@ -213,8 +262,20 @@ export default function App() {
         onRefresh={() => void refresh()}
         onOpenRepo={handleOpenRepo}
         onHome={() => setSnapshot(null)}
-        onOperations={() => setShowOps(true)}
-        onPublish={() => setShowPublish(true)}
+        onOperations={() => {
+          sfx.open();
+          setShowOps(true);
+        }}
+        soundOn={sound}
+        onToggleSound={() => {
+          const next = !sound;
+          setSound(next);
+          setSoundEnabled(next);
+        }}
+        onPublish={() => {
+          sfx.open();
+          setShowPublish(true);
+        }}
       />
 
       {(busy || error || !isDesktop()) && (
@@ -258,6 +319,39 @@ export default function App() {
           commitFiles={commitFiles}
           activeCommitFile={activeCommitFile}
           onSelectCommitFile={setActiveCommitFile}
+          filePatch={filePatch}
+          selectedLines={selectedLines}
+          onToggleLine={(idx) =>
+            setSelectedLines((prev) => {
+              const next = new Set(prev);
+              if (next.has(idx)) next.delete(idx);
+              else next.add(idx);
+              return next;
+            })
+          }
+          onClearLines={() => setSelectedLines(new Set())}
+          onSelectHunk={(indices) =>
+            setSelectedLines((prev) => {
+              const next = new Set(prev);
+              const allIn = indices.every((i) => next.has(i));
+              for (const i of indices) {
+                if (allIn) next.delete(i);
+                else next.add(i);
+              }
+              return next;
+            })
+          }
+          onStageLines={() => {
+            if (!selectedPath || selectedLines.size === 0) return;
+            void run("暂存选中行", async () => {
+              const next = await api.stageLines(
+                selectedPath,
+                selectedStaged,
+                [...selectedLines],
+              );
+              return next;
+            });
+          }}
           onStage={() => {
             // 显式守卫：闭包里不能依赖外层 selectedPath 的类型收窄
             if (!selectedPath) return;
@@ -299,7 +393,10 @@ export default function App() {
       {showPublish && (
         <PublishDialog
           snapshot={snapshot}
-          onClose={() => setShowPublish(false)}
+          onClose={() => {
+            sfx.close();
+            setShowPublish(false);
+          }}
           onPublished={(r) => {
             if (r.snapshot) setSnapshot(r.snapshot);
           }}
@@ -308,7 +405,10 @@ export default function App() {
 
       {showOps && (
         <Operations
-          onClose={() => setShowOps(false)}
+          onClose={() => {
+            sfx.close();
+            setShowOps(false);
+          }}
           onSnapshot={(r) => {
             // 操作改变了仓库状态，用引擎回传的新快照刷新界面
             if (r.snapshot) setSnapshot(r.snapshot);

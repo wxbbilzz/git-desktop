@@ -1,11 +1,15 @@
+import { useState } from "react";
 import type { BranchDTO, FileDTO, RepoSnapshot, SidebarTab } from "../types";
 import { PillButton } from "./PillButton";
+import { FileTree } from "./FileTree";
 import {
   IconBranch,
   IconCheck,
   IconMinus,
   IconPlus,
   IconTrash,
+  IconLayers,
+  IconTree,
   IconUndo,
 } from "./icons";
 
@@ -166,6 +170,9 @@ export function Sidebar({
   onDiscard,
   onCheckoutBranch,
 }: Props) {
+  // 文件视图：目录树 或 平铺列表
+  const [viewMode, setViewMode] = useState<"tree" | "flat">("tree");
+
   const changedFiles = snapshot.files.filter(
     (f) => f.isUnstaged || (!f.isStaged && !f.isUnstaged),
   );
@@ -194,6 +201,16 @@ export function Sidebar({
             分支<span className="count">{snapshot.branches.length}</span>
           </button>
         </div>
+
+        {tab !== "branches" && (
+          <PillButton
+            size="sm"
+            variant="ghost"
+            icon={viewMode === "tree" ? <IconLayers /> : <IconTree />}
+            title={viewMode === "tree" ? "切换为平铺列表" : "切换为目录树"}
+            onClick={() => setViewMode(viewMode === "tree" ? "flat" : "tree")}
+          />
+        )}
       </div>
 
       <div className="panel-body">
@@ -211,6 +228,19 @@ export function Sidebar({
                 全部暂存
               </PillButton>
             </div>
+            {viewMode === "tree" ? (
+              <FileTree
+                files={changedFiles}
+                staged={false}
+                selectedPath={selectedPath}
+                selectedStaged={selectedStaged}
+                busy={busy}
+                onSelectFile={onSelectFile}
+                onStage={onStage}
+                onUnstage={onUnstage}
+                onDiscard={onDiscard}
+              />
+            ) : (
             <div className="list">
               {changedFiles.map((f) => (
                 <FileRow
@@ -232,6 +262,7 @@ export function Sidebar({
                 </div>
               )}
             </div>
+            )}
           </>
         )}
 
@@ -248,6 +279,19 @@ export function Sidebar({
                 全部取消暂存
               </PillButton>
             </div>
+            {viewMode === "tree" ? (
+              <FileTree
+                files={stagedFiles}
+                staged
+                selectedPath={selectedPath}
+                selectedStaged={selectedStaged}
+                busy={busy}
+                onSelectFile={onSelectFile}
+                onStage={onStage}
+                onUnstage={onUnstage}
+                onDiscard={onDiscard}
+              />
+            ) : (
             <div className="list">
               {stagedFiles.map((f) => (
                 <FileRow
@@ -271,6 +315,7 @@ export function Sidebar({
                 </div>
               )}
             </div>
+            )}
           </>
         )}
 

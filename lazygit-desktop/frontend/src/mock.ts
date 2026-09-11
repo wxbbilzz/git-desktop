@@ -91,6 +91,7 @@ function build(): RepoSnapshot {
         when: "12 分钟前",
         tags: [],
         extraInfo: "HEAD -> feature/rounded-ui",
+        parents: ["3a7d19c4b2e6f8a1c3d5e7f9b0a2c4d6e8f0a1b3"],
       },
       {
         hash: "3a7d19c4b2e6f8a1c3d5e7f9b0a2c4d6e8f0a1b3",
@@ -100,6 +101,7 @@ function build(): RepoSnapshot {
         when: "2 小时前",
         tags: [],
         extraInfo: "",
+        parents: ["b1e4f7a0c3d6b9e2f5a8c1d4b7e0f3a6c9d2b5e8"],
       },
       {
         hash: "b1e4f7a0c3d6b9e2f5a8c1d4b7e0f3a6c9d2b5e8",
@@ -109,6 +111,7 @@ function build(): RepoSnapshot {
         when: "昨天",
         tags: ["v0.1.0"],
         extraInfo: "tag: v0.1.0",
+        parents: ["c8f2a5d1e4b7c0a3f6d9e2b5c8a1f4d7e0b3c6a9"],
       },
       {
         hash: "c8f2a5d1e4b7c0a3f6d9e2b5c8a1f4d7e0b3c6a9",
@@ -118,6 +121,7 @@ function build(): RepoSnapshot {
         when: "3 天前",
         tags: [],
         extraInfo: "",
+        parents: [],
       },
     ],
     branches: [
@@ -199,6 +203,7 @@ export function mockCommit(summary: string): RepoSnapshot {
         when: "刚刚",
         tags: [],
         extraInfo: "HEAD -> " + state.branch,
+        parents: state.commits.length > 0 ? [state.commits[0].hash] : [],
       },
       ...state.commits,
     ];

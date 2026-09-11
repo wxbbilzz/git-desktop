@@ -137,3 +137,64 @@ export const IconUpload = () => (
     <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
   </svg>
 );
+
+export const IconChevron = ({ open }: { open: boolean }) => (
+  <svg
+    {...base}
+    style={{
+      transform: open ? "rotate(90deg)" : "none",
+      transition: "transform 0.16s ease",
+    }}
+  >
+    <path d="m9 6 6 6-6 6" />
+  </svg>
+);
+
+export const IconFolderOpen = () => (
+  <svg {...base}>
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8A2 2 0 0 1 21 9.5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+    <path d="M3 11h18" />
+  </svg>
+);
+
+export const IconAlert = () => (
+  <svg {...base}>
+    <path d="M12 3 2 20h20z" />
+    <path d="M12 9v5" />
+    <path d="M12 17.5v.5" />
+  </svg>
+);
+
+export const IconLayers = () => (
+  <svg {...base}>
+    <path d="m12 3 9 5-9 5-9-5z" />
+    <path d="m3 13 9 5 9-5" />
+  </svg>
+);
+
+export const IconTree = () => (
+  <svg {...base}>
+    <path d="M4 5h6" />
+    <path d="M4 12h6" />
+    <path d="M4 19h6" />
+    <path d="M10 5v14" />
+    <path d="M10 12h4" />
+    <path d="M14 9h6v6h-6z" />
+  </svg>
+);
+
+export const IconVolumeOn = () => (
+  <svg {...base}>
+    <path d="M4 9v6h3l4 3V6L7 9z" />
+    <path d="M15 9a4 4 0 0 1 0 6" />
+    <path d="M18 6.5a8 8 0 0 1 0 11" />
+  </svg>
+);
+
+export const IconVolumeOff = () => (
+  <svg {...base}>
+    <path d="M4 9v6h3l4 3V6L7 9z" />
+    <path d="m16 9 5 6" />
+    <path d="m21 9-5 6" />
+  </svg>
+);
