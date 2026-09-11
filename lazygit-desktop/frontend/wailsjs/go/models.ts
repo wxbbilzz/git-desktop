@@ -157,6 +157,7 @@ export namespace engine {
 	    truncated: boolean;
 	    lines: number;
 	    size: number;
+	    fromIndex: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new FileContentDTO(source);
@@ -170,6 +171,7 @@ export namespace engine {
 	        this.truncated = source["truncated"];
 	        this.lines = source["lines"];
 	        this.size = source["size"];
+	        this.fromIndex = source["fromIndex"];
 	    }
 	}
 	export class FileDTO {

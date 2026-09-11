@@ -260,13 +260,22 @@ export default function App() {
     const onLeave = (e: DragEvent) => {
       if (e.relatedTarget === null) setDragging(false);
     };
+    // 兜底：按 Esc 取消拖拽、或把文件丢到窗口外时，dragleave 不一定触发，
+    // 不清理的话遮罩会一直盖在界面上
+    const onEnd = () => setDragging(false);
     window.addEventListener("dragenter", onEnter);
     window.addEventListener("dragover", onOver);
     window.addEventListener("dragleave", onLeave);
+    window.addEventListener("dragend", onEnd);
+    window.addEventListener("drop", onEnd);
+    window.addEventListener("blur", onEnd);
     return () => {
       window.removeEventListener("dragenter", onEnter);
       window.removeEventListener("dragover", onOver);
       window.removeEventListener("dragleave", onLeave);
+      window.removeEventListener("dragend", onEnd);
+      window.removeEventListener("drop", onEnd);
+      window.removeEventListener("blur", onEnd);
     };
   }, []);
 
@@ -375,6 +384,16 @@ export default function App() {
           onCheckoutBranch={(name) =>
             void run("切换分支", () => api.checkoutBranch(name))
           }
+          onCreateBranch={(name, start, checkout) =>
+            void run("新建分支", () => api.createBranchFrom(name, start, checkout))
+          }
+          onDeleteBranch={(name) => {
+            const ok = window.confirm(
+              `确定删除分支「${name}」吗？\n\n未合并的分支会拒绝删除。`,
+            );
+            if (!ok) return;
+            void run("删除分支", () => api.deleteBranch(name, false));
+          }}
           repoFiles={repoFiles}
           selectedRepoFile={selectedRepoFile}
           onSelectRepoFile={(p) => {

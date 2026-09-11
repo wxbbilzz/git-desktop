@@ -37,13 +37,25 @@ func (e *Engine) CommitFiles(hash string) ([]CommitFileDTO, error) {
 		return nil, fmt.Errorf("提交标识不能为空")
 	}
 
-	statusOut, err := e.gitOutput("show", "--name-status", "--format=", hash)
+	// 合并提交通常没有可展示的差异：git 对合并提交用的是 combined diff，
+	// 一次干净的合并会输出空。这时改用「与第一个父提交的差异」，
+	// 也就是「这次合并把什么带了进来」，这才是用户想看的。
+	// 注意：这里必须把 hash 拼进去，否则 git 会默认用 HEAD
+	// （曾经漏过一次，导致查任意提交都返回 HEAD 的文件）
+	baseArgs := []string{"show", "--format=", hash}
+	if e.isMergeCommit(hash) {
+		baseArgs = []string{"diff", hash + "^1", hash}
+	}
+
+	statusArgs := append(append([]string{}, baseArgs...), "--name-status")
+	statusOut, err := e.gitOutput(statusArgs...)
 	if err != nil {
 		return nil, err
 	}
 	files := parseNameStatus(statusOut)
 
-	if numOut, err := e.gitOutput("show", "--numstat", "--format=", hash); err == nil {
+	numArgs := append(append([]string{}, baseArgs...), "--numstat")
+	if numOut, err := e.gitOutput(numArgs...); err == nil {
 		applyNumstat(files, numOut)
 	}
 
@@ -67,11 +79,30 @@ func (e *Engine) CommitFileDiff(hash string, path string) (string, error) {
 		return "", fmt.Errorf("提交标识和文件路径都不能为空")
 	}
 
-	out, err := e.gitOutput("show", "--format=", "--patch", hash, "--", path)
+	var args []string
+	if e.isMergeCommit(hash) {
+		// 同 CommitFiles：合并提交用与第一个父提交的差异
+		args = []string{"diff", hash + "^1", hash, "--", path}
+	} else {
+		// --format= 去掉提交头信息，只看这个文件的改动
+		args = []string{"show", "--format=", "--patch", hash, "--", path}
+	}
+	out, err := e.gitOutput(args...)
 	if err != nil {
 		return "", err
 	}
 	return out, nil
+}
+
+// isMergeCommit 判断某个提交是不是合并提交（有多个父提交）。
+// 调用方需持有 e.mu。
+func (e *Engine) isMergeCommit(hash string) bool {
+	out, err := e.gitOutput("rev-list", "--parents", "-n", "1", hash)
+	if err != nil {
+		return false
+	}
+	// 输出形如 "<hash> <parent1> <parent2> ..."，字段数 > 2 就是合并
+	return len(strings.Fields(strings.TrimSpace(out))) > 2
 }
 
 // ---------------------------------------------------------------- 内部工具

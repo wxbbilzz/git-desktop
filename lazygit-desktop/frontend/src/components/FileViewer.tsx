@@ -76,6 +76,8 @@ export function FileViewer({ path, onClose }: Props) {
   useEffect(load, [path]);
 
   const lines = useMemo(() => data?.content.split("\n") ?? [], [data]);
+  // 语法着色比较费，按行缓存：否则滚动/重渲染时每行都要重新跑正则
+  const tokens = useMemo(() => lines.map(tokenize), [lines]);
 
   return (
     <section className="panel">
@@ -125,6 +127,11 @@ export function FileViewer({ path, onClose }: Props) {
 
       {!loading && !error && data && !data.binary && (
         <div className="diff file-view">
+          {data.fromIndex && (
+            <div className="file-truncated">
+              这个文件已从工作区删除，显示的是 git 索引里保留的版本
+            </div>
+          )}
           {data.truncated && (
             <div className="file-truncated">
               文件较大，只显示前 {Math.round(data.content.length / 1024)} KB
@@ -134,7 +141,7 @@ export function FileViewer({ path, onClose }: Props) {
             <div key={i} className="code-line">
               <span className="code-no">{i + 1}</span>
               <span className="code-text">
-                {tokenize(line).map((t, j) => (
+                {tokens[i]?.map((t, j) => (
                   <span key={j} className={"tok-" + t.kind}>
                     {t.text}
                   </span>

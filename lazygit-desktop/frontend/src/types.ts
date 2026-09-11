@@ -197,4 +197,6 @@ export interface FileContentDTO {
   truncated: boolean;
   lines: number;
   size: number;
+  /** 内容来自 git 索引（文件已从工作区删除） */
+  fromIndex: boolean;
 }

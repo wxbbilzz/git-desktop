@@ -108,3 +108,121 @@ func TestCommitFiles(t *testing.T) {
 	}
 	t.Logf("✅ 根提交也能正确列出文件")
 }
+
+// 回归测试：git show 对合并提交默认不输出差异（combined diff），
+// 之前点历史里的合并提交会看到「0 个文件」。
+func TestCommitFilesOnMergeCommit(t *testing.T) {
+	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		c := exec.Command("git", args...)
+		c.Dir = dir
+		c.Env = append(os.Environ(),
+			"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@e.com",
+			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@e.com")
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("%v 失败: %s", args, out)
+		}
+	}
+	write := func(name, content string) {
+		if err := os.WriteFile(dir+"/"+name, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	git("init", "-q", "--initial-branch=main")
+	write("base.txt", "b")
+	git("add", "-A")
+	git("commit", "-qm", "base")
+
+	git("checkout", "-qb", "feat")
+	write("feat.txt", "f")
+	git("add", "-A")
+	git("commit", "-qm", "feat")
+
+	git("checkout", "-q", "main")
+	write("main.txt", "m")
+	git("add", "-A")
+	git("commit", "-qm", "main work")
+
+	git("merge", "-q", "--no-ff", "feat", "-m", "merge feat")
+
+	e, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.OpenRepo(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := e.CommitFiles("HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) == 0 {
+		t.Fatal("合并提交应该能列出「带进来了哪些文件」，实际为空")
+	}
+
+	// 合并带进来的是 feat.txt
+	found := false
+	for _, f := range files {
+		if f.Path == "feat.txt" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("合并提交的文件列表里应该有 feat.txt，实际 %+v", files)
+	}
+
+	// 单文件 diff 也要能取到
+	if _, err := e.CommitFileDiff("HEAD", "feat.txt"); err != nil {
+		t.Errorf("合并提交的单文件 diff 失败: %v", err)
+	}
+}
+
+// 回归测试：文件已从工作区删除、但还在索引里时，
+// 文件树会列出它，点开必须仍然能看到内容（从索引读）。
+func TestFileContentFallsBackToIndex(t *testing.T) {
+	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		c := exec.Command("git", args...)
+		c.Dir = dir
+		c.Env = append(os.Environ(),
+			"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@e.com",
+			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@e.com")
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("%v 失败: %s", args, out)
+		}
+	}
+	git("init", "-q", "--initial-branch=main")
+	if err := os.WriteFile(dir+"/gone.txt", []byte("重要内容\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git("add", "-A")
+	git("commit", "-qm", "init")
+	if err := os.Remove(dir + "/gone.txt"); err != nil {
+		t.Fatal(err)
+	}
+
+	e, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.OpenRepo(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := e.FileContent("gone.txt")
+	if err != nil {
+		t.Fatalf("已删除的文件应当能从索引读到内容，实际报错: %v", err)
+	}
+	if !c.FromIndex {
+		t.Error("应当标记内容来自索引")
+	}
+	if !strings.Contains(c.Content, "重要内容") {
+		t.Errorf("内容不对: %q", c.Content)
+	}
+}

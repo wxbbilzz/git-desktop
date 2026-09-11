@@ -57,6 +57,9 @@ type FileContentDTO struct {
 	Truncated bool  `json:"truncated"`
 	Lines     int   `json:"lines"`
 	Size      int64 `json:"size"`
+	// FromIndex 表示内容来自 git 索引而不是工作区文件
+	// （文件已被删除时仍然能看到它提交前的样子）
+	FromIndex bool `json:"fromIndex"`
 }
 
 // 单个文件最多返回的内容（超出部分不读，避免把界面卡死）
@@ -81,7 +84,18 @@ func (e *Engine) FileContent(path string) (*FileContentDTO, error) {
 
 	info, err := os.Stat(full)
 	if err != nil {
-		return nil, fmt.Errorf("读取文件失败: %w", err)
+		// 工作区里没有这个文件，但它在索引里（典型情况：已从工作区删除、
+		// 但还没提交删除）。这时从 git 索引里取内容，仍然能正常浏览。
+		if content, ok := e.contentFromIndex(path); ok {
+			return &FileContentDTO{
+				Path:      path,
+				Content:   content,
+				Lines:     strings.Count(content, "\n") + 1,
+				Size:      int64(len(content)),
+				FromIndex: true,
+			}, nil
+		}
+		return nil, fmt.Errorf("文件在工作区里不存在（可能已被删除）")
 	}
 	if info.IsDir() {
 		return nil, fmt.Errorf("%s 是一个目录", path)
@@ -116,4 +130,16 @@ func (e *Engine) FileContent(path string) (*FileContentDTO, error) {
 	dto.Content = content
 	dto.Lines = strings.Count(content, "\n") + 1
 	return dto, nil
+}
+
+// contentFromIndex 从 git 索引里读取文件内容。调用方需持有 e.mu。
+func (e *Engine) contentFromIndex(path string) (string, bool) {
+	out, err := e.gitOutput("show", ":"+path)
+	if err != nil {
+		return "", false
+	}
+	if len(out) > maxPreviewBytes {
+		return out[:maxPreviewBytes], true
+	}
+	return out, true
 }

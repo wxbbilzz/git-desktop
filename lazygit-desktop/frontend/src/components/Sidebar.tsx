@@ -28,6 +28,8 @@ interface Props {
   onUnstageAll: () => void;
   onDiscard: (path: string) => void;
   onCheckoutBranch: (name: string) => void;
+  onCreateBranch: (name: string, start: string, checkout: boolean) => void;
+  onDeleteBranch: (name: string) => void;
   // 完整仓库文件树
   repoFiles: RepoFileDTO[];
   selectedRepoFile: string | null;
@@ -124,10 +126,14 @@ function BranchRow({
   branch,
   busy,
   onCheckout,
+  onNewFrom,
+  onDelete,
 }: {
   branch: BranchDTO;
   busy: string | null;
   onCheckout: () => void;
+  onNewFrom: () => void;
+  onDelete: () => void;
 }) {
   return (
     <div className={"row" + (branch.isHead ? " selected" : "")}>
@@ -144,18 +150,36 @@ function BranchRow({
       {branch.ahead && <span className="branch-ahead">↑{branch.ahead}</span>}
       {branch.behind && <span className="branch-behind">↓{branch.behind}</span>}
 
-      {!branch.isHead && (
-        <div className="row-actions">
-          <PillButton
-            size="sm"
-            variant="ghost"
-            icon={<IconCheck />}
-            title="切换到此分支"
-            disabled={busy !== null}
-            onClick={onCheckout}
-          />
-        </div>
-      )}
+      <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+        <PillButton
+          size="sm"
+          variant="ghost"
+          icon={<IconPlus />}
+          title="以这个分支为起点新建分支"
+          disabled={busy !== null}
+          onClick={onNewFrom}
+        />
+        {!branch.isHead && (
+          <>
+            <PillButton
+              size="sm"
+              variant="ghost"
+              icon={<IconCheck />}
+              title="切换到此分支"
+              disabled={busy !== null}
+              onClick={onCheckout}
+            />
+            <PillButton
+              size="sm"
+              variant="danger"
+              icon={<IconTrash />}
+              title="删除这个分支"
+              disabled={busy !== null}
+              onClick={onDelete}
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -174,12 +198,18 @@ export function Sidebar({
   onUnstageAll,
   onDiscard,
   onCheckoutBranch,
+  onCreateBranch,
+  onDeleteBranch,
   repoFiles,
   selectedRepoFile,
   onSelectRepoFile,
 }: Props) {
   // 文件视图：目录树 或 平铺列表
   const [viewMode, setViewMode] = useState<"tree" | "flat">("tree");
+  // 新建分支表单
+  const [newBranchOpen, setNewBranchOpen] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
+  const [newBranchStart, setNewBranchStart] = useState("");
 
   const changedFiles = snapshot.files.filter(
     (f) => f.isUnstaged || (!f.isStaged && !f.isUnstaged),
@@ -353,13 +383,93 @@ export function Sidebar({
         )}
 
         {tab === "branches" && (
-          <div className="list">
+          <>
+            {newBranchOpen ? (
+              <div className="branch-form">
+                <label className="label">新分支名</label>
+                <input
+                  className="field mono"
+                  placeholder="feature/xxx"
+                  value={newBranchName}
+                  disabled={busy !== null}
+                  spellCheck={false}
+                  autoFocus
+                  onChange={(e) => setNewBranchName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newBranchName.trim()) {
+                      onCreateBranch(newBranchName.trim(), newBranchStart.trim(), true);
+                      setNewBranchOpen(false);
+                      setNewBranchName("");
+                      setNewBranchStart("");
+                    }
+                  }}
+                />
+                <label className="label">起点分支</label>
+                <input
+                  className="field mono"
+                  placeholder="留空 = 当前分支"
+                  value={newBranchStart}
+                  disabled={busy !== null}
+                  spellCheck={false}
+                  onChange={(e) => setNewBranchStart(e.target.value)}
+                />
+                <div className="branch-form-actions">
+                  <PillButton
+                    size="sm"
+                    variant="primary"
+                    disabled={busy !== null || !newBranchName.trim()}
+                    onClick={() => {
+                      onCreateBranch(newBranchName.trim(), newBranchStart.trim(), true);
+                      setNewBranchOpen(false);
+                      setNewBranchName("");
+                      setNewBranchStart("");
+                    }}
+                  >
+                    创建并切换
+                  </PillButton>
+                  <PillButton
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setNewBranchOpen(false);
+                      setNewBranchName("");
+                      setNewBranchStart("");
+                    }}
+                  >
+                    取消
+                  </PillButton>
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: 8 }}>
+                <PillButton
+                  size="sm"
+                  variant="success"
+                  icon={<IconPlus />}
+                  disabled={busy !== null}
+                  style={{ width: "100%" }}
+                  onClick={() => {
+                    setNewBranchStart("");
+                    setNewBranchOpen(true);
+                  }}
+                >
+                  新建分支
+                </PillButton>
+              </div>
+            )}
+
+            <div className="list">
             {snapshot.branches.map((b) => (
               <BranchRow
                 key={b.name}
                 branch={b}
                 busy={busy}
                 onCheckout={() => onCheckoutBranch(b.name)}
+                onNewFrom={() => {
+                  setNewBranchStart(b.name);
+                  setNewBranchOpen(true);
+                }}
+                onDelete={() => onDeleteBranch(b.name)}
               />
             ))}
             {snapshot.branches.length === 0 && (
@@ -370,7 +480,8 @@ export function Sidebar({
                 </span>
               </div>
             )}
-          </div>
+            </div>
+          </>
         )}
       </div>
     </section>

@@ -18,6 +18,9 @@ import (
 // 少数最高频的操作（提交、暂存、切换分支、同步）另有专属界面，
 // 但它们底层也是往这张表的同一条命令传参。
 
+// pathsParamName 是「路径类参数」的约定名字，统一放在 -- 之后。
+const pathsParamName = "__paths"
+
 // 参数类型
 const (
 	KindString = "string" // 单行文本
@@ -104,6 +107,12 @@ func (op Operation) BuildArgs(args map[string]string) ([]string, error) {
 	argv := append([]string{}, op.Base...)
 
 	for _, p := range op.Params {
+		// __paths 统一放到 "--" 之后处理，不要在循环里再拼一次，
+		// 否则会重复出现在命令里（历史上这里就出过这个 bug）。
+		if p.Name == pathsParamName {
+			continue
+		}
+
 		v := strings.TrimSpace(args[p.Name])
 
 		if p.Kind == KindBool {
@@ -127,9 +136,10 @@ func (op Operation) BuildArgs(args map[string]string) ([]string, error) {
 		argv = append(argv, v)
 	}
 
-	if paths := strings.TrimSpace(args["__paths"]); paths != "" {
+	if paths := strings.TrimSpace(args[pathsParamName]); paths != "" {
 		argv = append(argv, "--")
-		argv = append(argv, strings.Fields(paths)...)
+		// 用支持引号的切分，这样带空格的路径（"my file.txt"）不会被拆坏
+		argv = append(argv, SplitCommandLine(paths)...)
 	}
 
 	return argv, nil

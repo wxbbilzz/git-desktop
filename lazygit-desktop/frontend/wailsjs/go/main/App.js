@@ -34,12 +34,20 @@ export function CreateBranch(arg1) {
   return window['go']['main']['App']['CreateBranch'](arg1);
 }
 
+export function CreateBranchFrom(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CreateBranchFrom'](arg1, arg2, arg3);
+}
+
 export function CreateRepo(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateRepo'](arg1, arg2, arg3);
 }
 
 export function DefaultBaseDir() {
   return window['go']['main']['App']['DefaultBaseDir']();
+}
+
+export function DeleteBranch(arg1, arg2) {
+  return window['go']['main']['App']['DeleteBranch'](arg1, arg2);
 }
 
 export function DeriveRepoName(arg1) {

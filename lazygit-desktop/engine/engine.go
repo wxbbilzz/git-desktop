@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/jesseduffield/lazygit/pkg/commands"
@@ -189,8 +190,15 @@ func (e *Engine) snapshotLocked() (*RepoSnapshot, error) {
 		IsDetached: e.git.Branch.IsHeadDetached(),
 	}
 
-	if branch, err := e.git.Branch.CurrentBranchName(); err == nil {
+	if branch, err := e.git.Branch.CurrentBranchName(); err == nil && branch != "" {
 		snap.Branch = branch
+	}
+	// 游离 HEAD 时 CurrentBranchName 返回空串，顶栏会什么都不显示。
+	// 这里退化成显示提交号，界面再配合 IsDetached 标注「游离 HEAD」。
+	if snap.IsDetached && snap.Branch == "" {
+		if head, err := e.gitOutput("rev-parse", "--short", "HEAD"); err == nil {
+			snap.Branch = strings.TrimSpace(head)
+		}
 	}
 	snap.State = stateLabel(e.git.Status.WorkingTreeState())
 

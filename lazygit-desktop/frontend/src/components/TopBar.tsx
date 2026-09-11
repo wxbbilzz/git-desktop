@@ -60,7 +60,7 @@ export function TopBar({
         <span className="chip accent">
           <IconBranch />
           {snapshot.branch}
-          {snapshot.isDetached ? " · detached" : ""}
+          {snapshot.isDetached ? " · 游离 HEAD" : ""}
         </span>
       )}
 

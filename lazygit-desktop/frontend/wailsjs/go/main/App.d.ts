@@ -18,9 +18,13 @@ export function CommitFiles(arg1:string):Promise<Array<engine.CommitFileDTO>>;
 
 export function CreateBranch(arg1:string):Promise<engine.RepoSnapshot>;
 
+export function CreateBranchFrom(arg1:string,arg2:string,arg3:boolean):Promise<engine.RepoSnapshot>;
+
 export function CreateRepo(arg1:string,arg2:string,arg3:string):Promise<engine.RepoSnapshot>;
 
 export function DefaultBaseDir():Promise<string>;
+
+export function DeleteBranch(arg1:string,arg2:boolean):Promise<engine.RepoSnapshot>;
 
 export function DeriveRepoName(arg1:string):Promise<string>;
 

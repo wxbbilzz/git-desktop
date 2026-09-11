@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FileDTO } from "../types";
 import { buildFileTree, type TreeDir, type TreeNode } from "../fileTree";
 import { IconChevron, IconFolder } from "./icons";
@@ -36,7 +36,8 @@ export function FileTree({
   onUnstage,
   onDiscard,
 }: Props) {
-  const tree = buildFileTree(files);
+  // 同 RepoFileTree：构建结果要缓存，否则每次渲染都重算
+  const tree = useMemo(() => buildFileTree(files), [files]);
 
   // 默认全部展开：文件少的时候展开更好用，多了再手动收
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());

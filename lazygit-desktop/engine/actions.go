@@ -190,18 +190,70 @@ func (e *Engine) CheckoutBranch(name string) (*RepoSnapshot, error) {
 
 // CreateBranch 基于当前 HEAD 建一个新分支并切过去。
 func (e *Engine) CreateBranch(name string) (*RepoSnapshot, error) {
+	return e.CreateBranchFrom(name, "", true)
+}
+
+// CreateBranchFrom 从指定起点创建分支。
+//
+//	start 为空      -> 以当前 HEAD 为起点
+//	checkout = true -> 创建后立即切过去（等价 git checkout -b）
+//	checkout = false-> 只创建不切换（等价 git branch）
+//
+// 注意：不能直接调 lazygit 的 Branch.New(name, start) —— 它内部用的是
+// Arg()，而 Arg 不会跳过空串，start 为空时会生成 `git checkout -b 名字 ""`，
+// git 会报 "empty string is not a valid pathspec"。所以这里自己拼参数。
+func (e *Engine) CreateBranchFrom(name, start string, checkout bool) (*RepoSnapshot, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	if err := e.requireRepoLocked(); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(name) == "" {
+
+	name = strings.TrimSpace(name)
+	start = strings.TrimSpace(start)
+	if name == "" {
 		return nil, fmt.Errorf("分支名不能为空")
 	}
-	// New() 默认会 checkout；base 传空串表示以当前 HEAD 为起点。
-	if err := e.git.Branch.New(name, ""); err != nil {
+	if strings.ContainsAny(name, " \t~^:?*[\\") {
+		return nil, fmt.Errorf("分支名里有非法字符（不能包含空格、~^:?*[ 等）")
+	}
+
+	var args []string
+	if checkout {
+		args = append(args, "checkout", "-b", name)
+	} else {
+		args = append(args, "branch", name)
+	}
+	if start != "" {
+		args = append(args, start)
+	}
+
+	if out, err := e.gitRun(args...); err != nil {
+		return nil, fmt.Errorf("%s", firstErrorLine(out))
+	}
+	return e.snapshotLocked()
+}
+
+// DeleteBranch 删除本地分支。
+func (e *Engine) DeleteBranch(name string, force bool) (*RepoSnapshot, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if err := e.requireRepoLocked(); err != nil {
 		return nil, err
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("分支名不能为空")
+	}
+
+	flag := "-d"
+	if force {
+		flag = "-D"
+	}
+	if out, err := e.gitRun("branch", flag, name); err != nil {
+		return nil, fmt.Errorf("%s", firstErrorLine(out))
 	}
 	return e.snapshotLocked()
 }

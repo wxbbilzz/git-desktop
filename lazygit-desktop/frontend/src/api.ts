@@ -59,6 +59,8 @@ interface DesktopBridge {
   Commit(summary: string, description: string): Promise<RepoSnapshot>;
   CheckoutBranch(name: string): Promise<RepoSnapshot>;
   CreateBranch(name: string): Promise<RepoSnapshot>;
+  CreateBranchFrom(name: string, start: string, checkout: boolean): Promise<RepoSnapshot>;
+  DeleteBranch(name: string, force: boolean): Promise<RepoSnapshot>;
   Fetch(): Promise<RepoSnapshot>;
   Pull(): Promise<RepoSnapshot>;
   Push(): Promise<RepoSnapshot>;
@@ -298,6 +300,22 @@ export const api = {
     return b ? b.CreateBranch(name) : mockCheckout(name);
   },
 
+  async createBranchFrom(
+    name: string,
+    start: string,
+    checkout: boolean,
+  ): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockCheckout(name);
+    return b.CreateBranchFrom(name, start, checkout);
+  },
+
+  async deleteBranch(name: string, force: boolean): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.DeleteBranch(name, force);
+  },
+
   async fetch(): Promise<RepoSnapshot> {
     const b = bridge();
     return b ? b.Fetch() : mockSnapshot();
@@ -469,7 +487,15 @@ export const api = {
   async fileContent(path: string): Promise<FileContentDTO> {
     const b = bridge();
     if (!b) {
-      return { path, content: "", binary: false, truncated: false, lines: 0, size: 0 };
+      return {
+        path,
+        content: "",
+        binary: false,
+        truncated: false,
+        lines: 0,
+        size: 0,
+        fromIndex: false,
+      };
     }
     return b.FileContent(path);
   },

@@ -87,6 +87,30 @@ func TestBuildArgs(t *testing.T) {
 	}
 }
 
+// 回归测试：__paths 曾经被拼接两次（参数循环一次、-- 之后一次），
+// 而且用 strings.Fields 切分，带空格的路径会被拆坏。
+func TestPathsParamNotDuplicated(t *testing.T) {
+	op, ok := OperationByID("restore.staged")
+	if !ok {
+		t.Fatal("找不到 restore.staged")
+	}
+
+	argv, err := op.BuildArgs(map[string]string{"__paths": `"my file.txt" other.txt`})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"restore", "--staged", "--", "my file.txt", "other.txt"}
+	if len(argv) != len(want) {
+		t.Fatalf("参数个数不对（可能重复拼接了）:\n  得到 %q\n  期望 %q", argv, want)
+	}
+	for i := range want {
+		if argv[i] != want[i] {
+			t.Fatalf("第 %d 项不对:\n  得到 %q\n  期望 %q", i, argv, want)
+		}
+	}
+}
+
 // 命令行解析要能正确处理引号
 func TestSplitCommandLine(t *testing.T) {
 	cases := []struct {

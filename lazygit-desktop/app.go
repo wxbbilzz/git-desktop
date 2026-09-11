@@ -407,3 +407,18 @@ func (a *App) IsGitRepo(path string) bool {
 	_, err = os.Stat(filepath.Join(p, ".git"))
 	return err == nil
 }
+
+// ---------------------------------------------------------------------------
+// 分支
+// ---------------------------------------------------------------------------
+
+// CreateBranchFrom 创建分支。
+// start 为空表示以当前 HEAD 为起点；checkout 为真时创建后立即切换。
+func (a *App) CreateBranchFrom(name string, start string, checkout bool) (*engine.RepoSnapshot, error) {
+	return a.engine.CreateBranchFrom(name, start, checkout)
+}
+
+// DeleteBranch 删除本地分支。
+func (a *App) DeleteBranch(name string, force bool) (*engine.RepoSnapshot, error) {
+	return a.engine.DeleteBranch(name, force)
+}

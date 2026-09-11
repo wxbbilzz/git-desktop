@@ -1958,3 +1958,19 @@ body {
   outline: none;
   background-color: rgba(124, 108, 255, 0.1);
 }
+
+/* 新建分支的内联表单 */
+.branch-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+}
+
+.branch-form-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}

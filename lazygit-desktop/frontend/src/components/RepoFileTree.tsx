@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { RepoFileDTO } from "../types";
 import { buildPathTree, type PathDir, type PathNode } from "../fileTree";
 import { IconChevron, IconFolder } from "./icons";
@@ -13,7 +13,9 @@ interface Props {
 }
 
 export function RepoFileTree({ files, selectedPath, onSelectFile }: Props) {
-  const tree = buildPathTree(files.map((f) => f.path));
+  // 必须缓存：否则每次点选文件都会把整棵树重建一遍
+  // （大仓库几千个文件时会明显卡顿）
+  const tree = useMemo(() => buildPathTree(files.map((f) => f.path)), [files]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const toggle = (path: string) =>
