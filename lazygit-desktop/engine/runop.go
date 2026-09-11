@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -194,5 +195,128 @@ func SplitCommandLine(s string) []string {
 		}
 	}
 	flush()
+	return out
+}
+
+// ---------------------------------------------------------------- 下拉候选值
+
+// RefOption 是下拉里的一个选项。
+type RefOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+// OperationChoices 一次性返回所有下拉需要的候选值。
+//
+// 放在一个方法里返回，是为了避免「每个参数发一次 IPC」——
+// 打开操作面板时只调一次就够。
+type OperationChoices struct {
+	Branches []RefOption `json:"branches"`
+	Refs     []RefOption `json:"refs"`
+	Commits  []RefOption `json:"commits"`
+	Files    []RefOption `json:"files"`
+	Remotes  []RefOption `json:"remotes"`
+	Tags     []RefOption `json:"tags"`
+	Stashes  []RefOption `json:"stashes"`
+}
+
+// OperationChoices 返回所有下拉参数的候选值。
+func (e *Engine) OperationChoices() (*OperationChoices, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if err := e.requireRepoLocked(); err != nil {
+		return nil, err
+	}
+
+	out := &OperationChoices{
+		Branches: []RefOption{}, Refs: []RefOption{}, Commits: []RefOption{},
+		Files: []RefOption{}, Remotes: []RefOption{}, Tags: []RefOption{},
+		Stashes: []RefOption{},
+	}
+
+	// 本地分支
+	if s, err := e.gitOutput("branch", "--format=%(refname:short)"); err == nil {
+		for _, name := range splitNonEmptyLines(s) {
+			out.Branches = append(out.Branches, RefOption{Value: name, Label: name})
+		}
+	}
+
+	// 标签（最近的在前）
+	if s, err := e.gitOutput("tag", "-l", "--sort=-creatordate"); err == nil {
+		for _, name := range splitNonEmptyLines(s) {
+			out.Tags = append(out.Tags, RefOption{Value: name, Label: name})
+		}
+	}
+
+	// 远端
+	if s, err := e.gitOutput("remote"); err == nil {
+		for _, name := range splitNonEmptyLines(s) {
+			out.Remotes = append(out.Remotes, RefOption{Value: name, Label: name})
+		}
+	}
+
+	// 最近提交：值用哈希，标签显示「短哈希 + 提交说明」
+	if s, err := e.gitOutput("log", "--oneline", "-n", "100", "--no-decorate"); err == nil {
+		for _, line := range splitNonEmptyLines(s) {
+			parts := strings.SplitN(line, " ", 2)
+			if len(parts) == 0 {
+				continue
+			}
+			hash := parts[0]
+			subject := ""
+			if len(parts) > 1 {
+				subject = parts[1]
+			}
+			out.Commits = append(out.Commits, RefOption{Value: hash, Label: line})
+			_ = subject
+		}
+	}
+
+	// 仓库文件（下拉里最多放前 500 个，太多反而难选）
+	if s, err := e.gitOutput("ls-files", "--cached", "--others", "--exclude-standard"); err == nil {
+		for i, name := range splitNonEmptyLines(s) {
+			if i >= 500 {
+				break
+			}
+			out.Files = append(out.Files, RefOption{Value: name, Label: name})
+		}
+	}
+
+	// 储藏记录
+	if s, err := e.gitOutput("stash", "list"); err == nil {
+		for _, e2 := range parseStashList(s) {
+			out.Stashes = append(out.Stashes, RefOption{
+				Value: strconv.Itoa(e2.Index),
+				Label: fmt.Sprintf("%s  %s", e2.Ref, e2.Message),
+			})
+		}
+	}
+
+	// 「分支 / 标签 / 提交都行」的场景：分支 + 常用特殊写法 + 标签
+	out.Refs = append(out.Refs, RefOption{Value: "HEAD", Label: "HEAD（当前提交）"})
+	out.Refs = append(out.Refs, RefOption{Value: "HEAD~1", Label: "HEAD~1（上一个提交）"})
+	out.Refs = append(out.Refs, out.Branches...)
+	for _, t := range out.Tags {
+		out.Refs = append(out.Refs, RefOption{Value: t.Value, Label: "标签 " + t.Label})
+	}
+	if len(out.Commits) > 20 {
+		out.Refs = append(out.Refs, out.Commits[:20]...)
+	} else {
+		out.Refs = append(out.Refs, out.Commits...)
+	}
+
+	return out, nil
+}
+
+// splitNonEmptyLines 按行切分并去掉空行与首尾空白。
+func splitNonEmptyLines(s string) []string {
+	out := []string{}
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			out = append(out, line)
+		}
+	}
 	return out
 }

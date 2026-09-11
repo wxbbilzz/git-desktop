@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import type { OperationSummary, Param, RunResult } from "../types";
+import type {
+  OperationChoices,
+  OperationSummary,
+  Param,
+  RefOption,
+  RunResult,
+} from "../types";
 import { PillButton } from "./PillButton";
 import { IconCheck, IconRefresh, IconTrash } from "./icons";
 
@@ -32,10 +38,21 @@ const RAW: OperationSummary = {
       choices: [],
       help: "",
       flag: "",
+      source: "",
     },
   ],
   dangerous: false,
   readOnly: false,
+};
+
+const EMPTY_CHOICES: OperationChoices = {
+  branches: [],
+  refs: [],
+  commits: [],
+  files: [],
+  remotes: [],
+  tags: [],
+  stashes: [],
 };
 
 export function Operations({ onClose, onSnapshot }: Props) {
@@ -47,8 +64,11 @@ export function Operations({ onClose, onSnapshot }: Props) {
   const [result, setResult] = useState<RunResult | null>(null);
   const [running, setRunning] = useState(false);
 
+  const [choices, setChoices] = useState<OperationChoices>(EMPTY_CHOICES);
+
   useEffect(() => {
     void api.operations().then(setOps);
+    void api.operationChoices().then(setChoices).catch(() => {});
   }, []);
 
   // Esc 关闭
@@ -217,6 +237,7 @@ export function Operations({ onClose, onSnapshot }: Props) {
                       param={p}
                       value={args[p.name] ?? ""}
                       disabled={running}
+                      choices={choices}
                       onChange={(v) => setArgs((a) => ({ ...a, [p.name]: v }))}
                     />
                   ))}
@@ -267,15 +288,38 @@ export function Operations({ onClose, onSnapshot }: Props) {
 }
 
 /** 按参数类型渲染一个输入控件 */
+function optionsFor(param: Param, choices: OperationChoices): RefOption[] {
+  switch (param.source) {
+    case "branch":
+      return choices.branches;
+    case "commit":
+      return choices.commits;
+    case "file":
+      return choices.files;
+    case "remote":
+      return choices.remotes;
+    case "tag":
+      return choices.tags;
+    case "stash":
+      return choices.stashes;
+    case "ref":
+      return choices.refs;
+    default:
+      return [];
+  }
+}
+
 function ParamField({
   param,
   value,
   disabled,
+  choices,
   onChange,
 }: {
   param: Param;
   value: string;
   disabled: boolean;
+  choices: OperationChoices;
   onChange: (v: string) => void;
 }) {
   const label = (
@@ -299,6 +343,46 @@ function ParamField({
           {param.flag && <em>对应参数 {param.flag}</em>}
         </span>
       </label>
+    );
+  }
+
+  // 下拉：选项来自仓库数据。列表为空时退回文本框，至少不会卡住。
+  if (param.kind === "ref") {
+    const opts = optionsFor(param, choices);
+    if (opts.length === 0) {
+      return (
+        <>
+          {label}
+          <input
+            className="field mono"
+            value={value}
+            disabled={disabled}
+            placeholder={param.placeholder || "手动填写"}
+            spellCheck={false}
+            onChange={(e) => onChange(e.target.value)}
+          />
+          <div className="hint-row">没有可选项，可以手动填写。</div>
+        </>
+      );
+    }
+    return (
+      <>
+        {label}
+        <select
+          className="field mono"
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {!param.required && <option value="">（默认）</option>}
+          {param.required && !value && <option value="">请选择…</option>}
+          {opts.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </>
     );
   }
 

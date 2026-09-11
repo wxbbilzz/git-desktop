@@ -90,6 +90,10 @@ export function OpenRepo(arg1) {
   return window['go']['main']['App']['OpenRepo'](arg1);
 }
 
+export function OperationChoices() {
+  return window['go']['main']['App']['OperationChoices']();
+}
+
 export function Operations() {
   return window['go']['main']['App']['Operations']();
 }

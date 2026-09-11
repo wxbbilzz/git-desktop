@@ -14,6 +14,7 @@ import type {
   ConflictFile,
   FileContentDTO,
   FilePatch,
+  OperationChoices,
   OperationSummary,
   PublishResult,
   RepoFileDTO,
@@ -71,6 +72,7 @@ interface DesktopBridge {
 
   // git 全命令
   Operations(): Promise<OperationSummary[]>;
+  OperationChoices(): Promise<OperationChoices>;
   RunOperation(id: string, args: Record<string, string>): Promise<RunResult>;
   RunRawGit(command: string): Promise<RunResult>;
 
@@ -350,6 +352,16 @@ export const api = {
   async operations(): Promise<OperationSummary[]> {
     const b = bridge();
     return b ? b.Operations() : [];
+  },
+
+  async operationChoices(): Promise<OperationChoices> {
+    const b = bridge();
+    if (!b) {
+      return {
+        branches: [], refs: [], commits: [], files: [], remotes: [], tags: [], stashes: [],
+      };
+    }
+    return b.OperationChoices();
   },
 
   async runOperation(

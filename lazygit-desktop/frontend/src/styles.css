@@ -2142,3 +2142,21 @@ body {
   background: var(--border);
   margin: 2px 0;
 }
+
+/* 操作面板里的下拉框 */
+.ops-form select.field {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 34px;
+  /* 自绘一个小三角，避免各平台原生样式不一致 */
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% + 1px), calc(100% - 13px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.ops-form select.field option {
+  background: #1e2230;
+  color: var(--text);
+}

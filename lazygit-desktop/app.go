@@ -431,3 +431,8 @@ func (a *App) DeleteBranch(name string, force bool) (*engine.RepoSnapshot, error
 func (a *App) PushSetUpstream(remote string) (*engine.RepoSnapshot, error) {
 	return a.engine.PushSetUpstream(remote)
 }
+
+// OperationChoices 返回操作面板里所有下拉的候选值。
+func (a *App) OperationChoices() (*engine.OperationChoices, error) {
+	return a.engine.OperationChoices()
+}

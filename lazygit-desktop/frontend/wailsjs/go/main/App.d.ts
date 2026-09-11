@@ -46,6 +46,8 @@ export function JoinPath(arg1:string,arg2:string):Promise<string>;
 
 export function OpenRepo(arg1:string):Promise<engine.RepoSnapshot>;
 
+export function OperationChoices():Promise<engine.OperationChoices>;
+
 export function Operations():Promise<Array<engine.OperationSummary>>;
 
 export function PickDirectory(arg1:string):Promise<string>;

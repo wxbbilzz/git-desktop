@@ -88,6 +88,8 @@ export interface Param {
   choices: string[];
   help: string;
   flag: string;
+  /** Kind 为 ref 时，指明下拉选项从哪来 */
+  source: string;
 }
 
 /** 一个 git 操作的概要。 */
@@ -199,4 +201,21 @@ export interface FileContentDTO {
   size: number;
   /** 内容来自 git 索引（文件已从工作区删除） */
   fromIndex: boolean;
+}
+
+/** 下拉里的一个选项。 */
+export interface RefOption {
+  value: string;
+  label: string;
+}
+
+/** 所有下拉参数的候选值（一次取回，避免多次 IPC）。 */
+export interface OperationChoices {
+  branches: RefOption[];
+  refs: RefOption[];
+  commits: RefOption[];
+  files: RefOption[];
+  remotes: RefOption[];
+  tags: RefOption[];
+  stashes: RefOption[];
 }

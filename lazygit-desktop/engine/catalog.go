@@ -26,7 +26,21 @@ const (
 	KindString = "string" // 单行文本
 	KindText   = "text"   // 多行文本
 	KindBool   = "bool"   // 开关
-	KindChoice = "choice" // 下拉选择
+	KindChoice = "choice" // 固定枚举下拉
+	// KindRef 是「从仓库数据里选」的下拉：分支、提交、文件、远端、标签、储藏。
+	// 这样绝大多数操作点几下就能完成，不用手输名字。
+	KindRef = "ref"
+)
+
+// 下拉选项的来源
+const (
+	SourceRef    = "ref"    // 分支 / 标签 / 提交都能用
+	SourceBranch = "branch" // 本地分支
+	SourceCommit = "commit" // 提交历史
+	SourceFile   = "file"   // 仓库文件
+	SourceRemote = "remote" // 远端名
+	SourceTag    = "tag"    // 标签
+	SourceStash  = "stash"  // 储藏记录
 )
 
 // Param 描述一个命令参数。
@@ -42,6 +56,8 @@ type Param struct {
 	// Flag：拼 argv 时加在值前面，例如 "-m" 拼成 ["-m", 值]。
 	// 对 KindBool，表示开关打开时要追加的标志。
 	Flag string `json:"flag"`
+	// Source 只在 Kind 为 KindRef 时有意义，指明下拉选项从哪来。
+	Source string `json:"source"`
 }
 
 // Operation 描述一个 git 操作。
@@ -153,6 +169,18 @@ func s(name, label string, required bool, placeholder string) Param {
 func sf(name, label, flag string, required bool, placeholder string) Param {
 	return Param{Name: name, Label: label, Kind: KindString, Flag: flag, Required: required, Placeholder: placeholder}
 }
+
+// ref 构造一个「从仓库数据里选」的下拉参数
+func ref(name, label, source string, required bool) Param {
+	return Param{
+		Name:     name,
+		Label:    label,
+		Kind:     KindRef,
+		Source:   source,
+		Required: required,
+	}
+}
+
 func bo(name, label, flag string, def bool) Param {
 	d := "false"
 	if def {
@@ -174,14 +202,14 @@ func commitOps() []Operation {
 			ID: "commit.revert", Category: "提交", Name: "撤销某次提交",
 			Description: "生成一个反向提交抵消指定提交（新建提交，安全）",
 			Base:        []string{"revert", "--no-edit"},
-			Params:      []Param{s("ref", "要撤销的提交", true, "HEAD")},
+			Params:      []Param{ref("ref", "要撤销的提交", SourceCommit, true)},
 		},
 		{
 			ID: "commit.cherrypick", Category: "提交", Name: "拣选提交到当前分支",
 			Description: "把其他分支的某次提交复制到当前分支",
 			Base:        []string{"cherry-pick"},
 			Params: []Param{
-				s("ref", "提交", true, "abc1234"),
+				ref("ref", "提交", SourceCommit, true),
 				bo("no_commit", "只应用改动，不自动提交", "--no-commit", false),
 			},
 		},
@@ -189,26 +217,26 @@ func commitOps() []Operation {
 			ID: "commit.reset.soft", Category: "提交", Name: "回退提交（改动留在暂存区）",
 			Description: "移动分支指针到指定提交，改动保留且处于已暂存状态",
 			Base:        []string{"reset", "--soft"},
-			Params:      []Param{s("ref", "回退到", true, "HEAD~1")},
+			Params:      []Param{ref("ref", "回退到", SourceCommit, true)},
 		},
 		{
 			ID: "commit.reset.mixed", Category: "提交", Name: "回退提交（改动留在工作区）",
 			Description: "移动分支指针到指定提交，改动保留但取消暂存",
 			Base:        []string{"reset", "--mixed"},
-			Params:      []Param{s("ref", "回退到", true, "HEAD~1")},
+			Params:      []Param{ref("ref", "回退到", SourceCommit, true)},
 		},
 		{
 			ID: "commit.reset.hard", Category: "提交", Name: "硬回退（丢弃改动）",
 			Description: "移动分支指针并丢弃所有未提交改动。不可撤销！",
 			Base:        []string{"reset", "--hard"},
-			Params:      []Param{s("ref", "回退到", true, "HEAD~1")},
+			Params:      []Param{ref("ref", "回退到", SourceCommit, true)},
 			Dangerous:   true,
 		},
 		{
 			ID: "commit.show", Category: "提交", Name: "查看某次提交",
 			Description: "显示提交的元信息与完整改动",
 			Base:        []string{"show", "--stat", "-p"},
-			Params:      []Param{s("ref", "提交", true, "HEAD")},
+			Params:      []Param{ref("ref", "提交", SourceCommit, true)},
 			ReadOnly:    true,
 		},
 	}
@@ -224,21 +252,21 @@ func branchOps() []Operation {
 			Base:        []string{"branch"},
 			Params: []Param{
 				s("name", "新分支名", true, "feature/xxx"),
-				s("start", "起点（留空=当前 HEAD）", false, "main"),
+				ref("start", "起点", SourceBranch, false),
 			},
 		},
 		{
 			ID: "branch.delete", Category: "分支", Name: "删除分支",
 			Description: "删除已合并的本地分支",
 			Base:        []string{"branch", "-d"},
-			Params:      []Param{s("name", "分支名", true, "feature/xxx")},
+			Params:      []Param{ref("name", "分支", SourceBranch, true)},
 			Dangerous:   true,
 		},
 		{
 			ID: "branch.delete.force", Category: "分支", Name: "强制删除分支",
 			Description: "即使未合并也删除（未合并的提交会丢失）",
 			Base:        []string{"branch", "-D"},
-			Params:      []Param{s("name", "分支名", true, "feature/xxx")},
+			Params:      []Param{ref("name", "分支", SourceBranch, true)},
 			Dangerous:   true,
 		},
 		{
@@ -246,7 +274,7 @@ func branchOps() []Operation {
 			Description: "给当前分支或指定分支改名",
 			Base:        []string{"branch", "-m"},
 			Params: []Param{
-				s("old", "原分支名（留空=当前分支）", false, "old-name"),
+				ref("old", "原分支", SourceBranch, false),
 				s("new", "新分支名", true, "new-name"),
 			},
 		},
@@ -254,14 +282,14 @@ func branchOps() []Operation {
 			ID: "branch.checkout", Category: "分支", Name: "切换分支",
 			Description: "检出指定分支或提交",
 			Base:        []string{"checkout"},
-			Params:      []Param{s("name", "分支 / 提交", true, "main")},
+			Params:      []Param{ref("name", "分支 / 提交", SourceRef, true)},
 		},
 		{
 			ID: "branch.merge", Category: "分支", Name: "合并分支",
 			Description: "把指定分支合并进当前分支",
 			Base:        []string{"merge"},
 			Params: []Param{
-				s("branch", "要合并进来的分支", true, "feature/xxx"),
+				ref("branch", "要合并进来的分支", SourceBranch, true),
 				bo("no_ff", "总是生成合并提交（--no-ff）", "--no-ff", false),
 				bo("squash", "压缩为一次改动（--squash）", "--squash", false),
 			},
@@ -270,7 +298,7 @@ func branchOps() []Operation {
 			ID: "branch.rebase", Category: "分支", Name: "变基到分支",
 			Description: "把当前分支的提交重新应用到目标分支之上",
 			Base:        []string{"rebase"},
-			Params:      []Param{s("onto", "目标分支", true, "main")},
+			Params:      []Param{ref("onto", "目标分支", SourceBranch, true)},
 		},
 		{
 			ID: "branch.rebase.continue", Category: "分支", Name: "继续变基",
@@ -295,7 +323,7 @@ func branchOps() []Operation {
 			Base:        []string{"branch"},
 			Params: []Param{
 				sf("upstream", "上游", "--set-upstream-to", true, "origin/main"),
-				s("branch", "分支名（留空=当前）", false, ""),
+				ref("branch", "分支", SourceBranch, false),
 			},
 		},
 		{
@@ -316,7 +344,7 @@ func remoteOps() []Operation {
 			Description: "新增一个远端仓库地址",
 			Base:        []string{"remote", "add"},
 			Params: []Param{
-				s("name", "远端名", true, "origin"),
+				ref("name", "远端", SourceRemote, true),
 				s("url", "地址", true, "https://gitee.com/user/repo.git"),
 			},
 		},
@@ -324,7 +352,7 @@ func remoteOps() []Operation {
 			ID: "remote.remove", Category: "远端", Name: "删除远端",
 			Description: "移除一个远端配置（不影响远端服务器）",
 			Base:        []string{"remote", "remove"},
-			Params:      []Param{s("name", "远端名", true, "origin")},
+			Params:      []Param{ref("name", "远端", SourceRemote, true)},
 			Dangerous:   true,
 		},
 		{
@@ -341,7 +369,7 @@ func remoteOps() []Operation {
 			Description: "替换某个远端的 URL",
 			Base:        []string{"remote", "set-url"},
 			Params: []Param{
-				s("name", "远端名", true, "origin"),
+				ref("name", "远端", SourceRemote, true),
 				s("url", "新地址", true, "git@gitee.com:user/repo.git"),
 			},
 		},
@@ -355,14 +383,14 @@ func remoteOps() []Operation {
 			ID: "remote.prune", Category: "远端", Name: "清理失效远端分支",
 			Description: "删除远端已不存在的远程跟踪分支",
 			Base:        []string{"remote", "prune"},
-			Params:      []Param{s("name", "远端名", true, "origin")},
+			Params:      []Param{ref("name", "远端", SourceRemote, true)},
 		},
 		{
 			ID: "sync.fetch", Category: "远端", Name: "拉取远端更新",
 			Description: "下载远端最新提交与分支，不合并到本地",
 			Base:        []string{"fetch"},
 			Params: []Param{
-				s("remote", "远端（留空=默认）", false, "origin"),
+				ref("remote", "远端", SourceRemote, false),
 				bo("prune", "顺带清理已删除的远端分支", "--prune", false),
 				bo("tags", "同时拉取标签", "--tags", false),
 			},
@@ -372,7 +400,7 @@ func remoteOps() []Operation {
 			Description: "从远端拉取并合入当前分支",
 			Base:        []string{"pull"},
 			Params: []Param{
-				s("remote", "远端（留空=默认）", false, "origin"),
+				ref("remote", "远端", SourceRemote, false),
 				s("branch", "分支（留空=当前）", false, ""),
 				bo("ff_only", "只允许快进（--ff-only）", "--ff-only", false),
 				bo("rebase", "用变基代替合并（--rebase）", "--rebase", false),
@@ -383,7 +411,7 @@ func remoteOps() []Operation {
 			Description: "把当前分支的提交推送到远端",
 			Base:        []string{"push"},
 			Params: []Param{
-				s("remote", "远端（留空=默认）", false, "origin"),
+				ref("remote", "远端", SourceRemote, false),
 				s("branch", "分支（留空=当前）", false, ""),
 				bo("set_upstream", "设为上游（-u，首次推送用）", "--set-upstream", false),
 				bo("force_lease", "安全强推（--force-with-lease）", "--force-with-lease", false),
@@ -393,14 +421,14 @@ func remoteOps() []Operation {
 			ID: "sync.push.tags", Category: "远端", Name: "推送所有标签",
 			Description: "把所有本地标签推送到远端",
 			Base:        []string{"push", "--tags"},
-			Params:      []Param{s("remote", "远端（留空=默认）", false, "origin")},
+			Params:      []Param{ref("remote", "远端", SourceRemote, false)},
 		},
 		{
 			ID: "sync.push.force", Category: "远端", Name: "强制推送（危险）",
 			Description: "用本地历史覆盖远端，会丢弃远端提交，可能影响他人！",
 			Base:        []string{"push", "--force"},
 			Params: []Param{
-				s("remote", "远端", true, "origin"),
+				ref("remote", "远端", SourceRemote, true),
 				s("branch", "分支", false, ""),
 			},
 			Dangerous: true,
@@ -409,7 +437,7 @@ func remoteOps() []Operation {
 			ID: "sync.lsremote", Category: "远端", Name: "查看远端引用",
 			Description: "不下载对象，只列出远端的分支和标签",
 			Base:        []string{"ls-remote"},
-			Params:      []Param{s("remote", "远端或地址", true, "origin")},
+			Params:      []Param{ref("remote", "远端", SourceRemote, true)},
 			ReadOnly:    true,
 		},
 	}
@@ -424,7 +452,7 @@ func tagOps() []Operation {
 			Description: "给某个提交打标签。填了信息就是附注标签",
 			Base:        []string{"tag"},
 			Params: []Param{
-				s("name", "标签名", true, "v1.0.0"),
+				ref("name", "标签", SourceTag, true),
 				s("ref", "目标提交（留空=HEAD）", false, "HEAD"),
 				sf("message", "附注信息", "-m", false, "发布 v1.0.0"),
 			},
@@ -433,7 +461,7 @@ func tagOps() []Operation {
 			ID: "tag.delete", Category: "标签", Name: "删除本地标签",
 			Description: "删除一个本地标签",
 			Base:        []string{"tag", "-d"},
-			Params:      []Param{s("name", "标签名", true, "v1.0.0")},
+			Params:      []Param{ref("name", "标签", SourceTag, true)},
 			Dangerous:   true,
 		},
 		{
@@ -441,8 +469,8 @@ func tagOps() []Operation {
 			Description: "把指定标签推送到远端",
 			Base:        []string{"push"},
 			Params: []Param{
-				s("remote", "远端", true, "origin"),
-				s("name", "标签名", true, "v1.0.0"),
+				ref("remote", "远端", SourceRemote, true),
+				ref("name", "标签", SourceTag, true),
 			},
 		},
 		{
@@ -450,7 +478,7 @@ func tagOps() []Operation {
 			Description: "删除远端服务器上的标签",
 			Base:        []string{"push"},
 			Params: []Param{
-				s("remote", "远端", true, "origin"),
+				ref("remote", "远端", SourceRemote, true),
 				sf("name", "标签名", "--delete", true, "v1.0.0"),
 			},
 			Dangerous: true,
@@ -489,26 +517,26 @@ func stashOps() []Operation {
 			ID: "stash.show", Category: "储藏", Name: "查看储藏内容",
 			Description: "显示某条储藏的具体改动",
 			Base:        []string{"stash", "show", "-p"},
-			Params:      []Param{s("index", "储藏编号（如 0）", false, "0")},
+			Params:      []Param{ref("index", "储藏", SourceStash, true)},
 			ReadOnly:    true,
 		},
 		{
 			ID: "stash.pop", Category: "储藏", Name: "弹出储藏",
 			Description: "应用储藏并从列表中删除它",
 			Base:        []string{"stash", "pop"},
-			Params:      []Param{s("index", "储藏编号（留空=最近）", false, "0")},
+			Params:      []Param{ref("index", "储藏", SourceStash, false)},
 		},
 		{
 			ID: "stash.apply", Category: "储藏", Name: "应用储藏（保留记录）",
 			Description: "应用储藏但保留在列表里",
 			Base:        []string{"stash", "apply"},
-			Params:      []Param{s("index", "储藏编号（留空=最近）", false, "0")},
+			Params:      []Param{ref("index", "储藏", SourceStash, false)},
 		},
 		{
 			ID: "stash.drop", Category: "储藏", Name: "删除一条储藏",
 			Description: "丢弃指定储藏，不再保留",
 			Base:        []string{"stash", "drop"},
-			Params:      []Param{s("index", "储藏编号", true, "0")},
+			Params:      []Param{ref("index", "储藏", SourceStash, true)},
 			Dangerous:   true,
 		},
 		{
@@ -517,7 +545,7 @@ func stashOps() []Operation {
 			Base:        []string{"stash", "branch"},
 			Params: []Param{
 				s("name", "新分支名", true, "recover-work"),
-				s("index", "储藏编号（留空=最近）", false, "0"),
+				ref("index", "储藏", SourceStash, false),
 			},
 		},
 		{
@@ -537,14 +565,14 @@ func undoOps() []Operation {
 			ID: "restore.file", Category: "撤销", Name: "丢弃文件改动",
 			Description: "把文件恢复到暂存区版本，丢弃未暂存的修改",
 			Base:        []string{"restore"},
-			Params:      []Param{s("__paths", "文件路径（多个用空格分隔）", true, "src/main.go")},
+			Params:      []Param{ref("__paths", "文件", SourceFile, true)},
 			Dangerous:   true,
 		},
 		{
 			ID: "restore.staged", Category: "撤销", Name: "取消暂存文件",
 			Description: "把文件从暂存区退回工作区，改动本身保留",
 			Base:        []string{"restore", "--staged"},
-			Params:      []Param{s("__paths", "文件路径（多个用空格分隔）", true, "src/main.go")},
+			Params:      []Param{ref("__paths", "文件", SourceFile, true)},
 		},
 		{
 			ID: "clean.dry", Category: "撤销", Name: "预览将被清理的文件",
@@ -728,7 +756,7 @@ func queryOps() []Operation {
 			ID: "query.blame", Category: "查询", Name: "追溯文件每行来源",
 			Description: "显示文件每一行最后由哪次提交、谁修改",
 			Base:        []string{"blame"},
-			Params:      []Param{s("file", "文件路径", true, "src/main.go")},
+			Params:      []Param{ref("file", "文件", SourceFile, true)},
 			ReadOnly:    true,
 		},
 		{
