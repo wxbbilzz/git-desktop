@@ -16,6 +16,7 @@ import type {
   FilePatch,
   OperationChoices,
   OperationSummary,
+  PublishDefaults,
   PublishResult,
   RepoFileDTO,
   RepoSnapshot,
@@ -97,6 +98,7 @@ interface DesktopBridge {
   FileContent(path: string): Promise<FileContentDTO>;
 
   // 上传到托管平台
+  PublishDefaults(): Promise<PublishDefaults>;
   Publish(
     platform: string,
     mode: string,
@@ -395,6 +397,12 @@ export const api = {
       };
     }
     return b.RunRawGit(command);
+  },
+
+  async publishDefaults(): Promise<PublishDefaults> {
+    const b = bridge();
+    if (!b) return { remoteUrl: "", remoteName: "", repoName: "" };
+    return b.PublishDefaults();
   },
 
   async publish(

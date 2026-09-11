@@ -99,3 +99,66 @@ func TestPublishToExistingRepo(t *testing.T) {
 		t.Errorf("远端地址被 token 污染了: %s", url)
 	}
 }
+
+// 回归测试：上传对话框要能预填「上次用过的仓库地址」，
+// 并且绝不能把地址里的 token 显示到界面上。
+func TestPublishDefaults(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	t.Setenv("GIT_CONFIG_SYSTEM", "/dev/null")
+
+	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		c := exec.Command("git", args...)
+		c.Dir = dir
+		c.Env = append(os.Environ(),
+			"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@e.com",
+			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@e.com")
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("%v 失败: %s", args, out)
+		}
+	}
+
+	git("init", "-q", "--initial-branch=main")
+	if err := os.WriteFile(dir+"/a.txt", []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git("add", "-A")
+	git("commit", "-qm", "init")
+
+	e, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.OpenRepo(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	// 没有远端时不应该报错，只是返回空的地址
+	d, err := e.PublishDefaults()
+	if err != nil {
+		t.Fatalf("没有远端时不该报错: %v", err)
+	}
+	if d.RemoteURL != "" {
+		t.Errorf("没有远端时地址应为空，实际 %q", d.RemoteURL)
+	}
+
+	// 配一个带 token 的地址
+	git("remote", "add", "origin",
+		"https://oauth2:SECRET_TOKEN@example.com/user/repo.git")
+
+	d, err = e.PublishDefaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.RemoteName != "origin" {
+		t.Errorf("远端名应为 origin，实际 %q", d.RemoteName)
+	}
+	if strings.Contains(d.RemoteURL, "SECRET_TOKEN") {
+		t.Errorf("❌ 地址里的 token 泄露到界面了: %s", d.RemoteURL)
+	}
+	if d.RemoteURL != "https://example.com/user/repo.git" {
+		t.Errorf("剥离后的地址不对: %s", d.RemoteURL)
+	}
+}

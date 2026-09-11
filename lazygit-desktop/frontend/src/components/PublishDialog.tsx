@@ -45,6 +45,27 @@ export function PublishDialog({ snapshot, onClose, onPublished }: Props) {
   const [description, setDescription] = useState("");
   const [privateRepo, setPrivateRepo] = useState(false);
   const [storeToken, setStoreToken] = useState(true);
+  // 是否把令牌记在本机（下次打开自动填上）
+  const [rememberToken, setRememberToken] = useState(true);
+
+  // 令牌存在本机（localStorage），按平台分开存。
+  // 注意：这是明文存在本机配置文件里，界面会明确提示。
+  const tokenKey = (p: string) => `lgd:publish:token:${p}`;
+  const loadToken = (p: string) => {
+    try {
+      return localStorage.getItem(tokenKey(p)) ?? "";
+    } catch {
+      return "";
+    }
+  };
+  const saveToken = (p: string, t: string) => {
+    try {
+      if (rememberToken) localStorage.setItem(tokenKey(p), t);
+      else localStorage.removeItem(tokenKey(p));
+    } catch {
+      /* 忽略隐私模式下的写入失败 */
+    }
+  };
 
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState("");
@@ -54,6 +75,32 @@ export function PublishDialog({ snapshot, onClose, onPublished }: Props) {
     const off = onPublishProgress((s) => setStep(s));
     return off;
   }, []);
+
+  // 打开时把「上次用过的信息」填好：
+  //   地址 -> 从仓库已有的 remote 读（最准）
+  //   令牌 -> 从本机记住的上次令牌读
+  useEffect(() => {
+    void api
+      .publishDefaults()
+      .then((d) => {
+        if (d.remoteUrl) {
+          setRepoUrl(d.remoteUrl);
+          // 已经有远端，默认就用「已有仓库」这条路径
+          setMode("existing");
+          const u = d.remoteUrl.toLowerCase();
+          if (u.includes("github")) setPlatform("github");
+          else if (u.includes("gitee")) setPlatform("gitee");
+        }
+        if (d.repoName) setName(d.repoName);
+      })
+      .catch(() => {});
+  }, []);
+
+  // 平台变了就换上那个平台记住的令牌
+  useEffect(() => {
+    const saved = loadToken(platform);
+    if (saved) setToken(saved);
+  }, [platform]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -89,6 +136,8 @@ export function PublishDialog({ snapshot, onClose, onPublished }: Props) {
         storeToken,
       );
       setResult(res);
+      // 只有成功了才记住，免得记住一个错的
+      if (res.ok) saveToken(platform, token.trim());
       if (res.snapshot) onPublished(res);
     } catch (e) {
       setResult({
@@ -248,6 +297,21 @@ export function PublishDialog({ snapshot, onClose, onPublished }: Props) {
             </>
           )}
 
+          {needToken && (
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={rememberToken}
+                disabled={busy}
+                onChange={(e) => setRememberToken(e.target.checked)}
+              />
+              <span>
+                记住令牌（下次自动填上）
+                <em>明文存在本机，不会上传到任何地方</em>
+              </span>
+            </label>
+          )}
+
           <label className="check-row">
             <input
               type="checkbox"
@@ -256,9 +320,9 @@ export function PublishDialog({ snapshot, onClose, onPublished }: Props) {
               onChange={(e) => setStoreToken(e.target.checked)}
             />
             <span>
-              记住凭据
+              把凭据写进本仓库配置
               <em>
-                把令牌写进本仓库的 .git/config（不会提交、不会外传），
+                写进 .git/config（不会提交、不会外传），
                 这样以后在软件里点 Push 也能直接用
               </em>
             </span>

@@ -436,3 +436,8 @@ func (a *App) PushSetUpstream(remote string) (*engine.RepoSnapshot, error) {
 func (a *App) OperationChoices() (*engine.OperationChoices, error) {
 	return a.engine.OperationChoices()
 }
+
+// PublishDefaults 返回上传对话框可以预填的信息（已有远端地址等）。
+func (a *App) PublishDefaults() (*engine.PublishDefaults, error) {
+	return a.engine.PublishDefaults()
+}

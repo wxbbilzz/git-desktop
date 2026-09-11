@@ -110,6 +110,10 @@ export function Publish(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
   return window['go']['main']['App']['Publish'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
+export function PublishDefaults() {
+  return window['go']['main']['App']['PublishDefaults']();
+}
+
 export function Pull() {
   return window['go']['main']['App']['Pull']();
 }

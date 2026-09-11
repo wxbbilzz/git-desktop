@@ -396,6 +396,22 @@ export namespace engine {
 	}
 	
 	
+	export class PublishDefaults {
+	    remoteUrl: string;
+	    remoteName: string;
+	    repoName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PublishDefaults(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.remoteUrl = source["remoteUrl"];
+	        this.remoteName = source["remoteName"];
+	        this.repoName = source["repoName"];
+	    }
+	}
 	export class RepoSnapshot {
 	    repoPath: string;
 	    repoName: string;

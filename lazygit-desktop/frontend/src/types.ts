@@ -219,3 +219,10 @@ export interface OperationChoices {
   tags: RefOption[];
   stashes: RefOption[];
 }
+
+/** 上传对话框可以预填的信息。 */
+export interface PublishDefaults {
+  remoteUrl: string;
+  remoteName: string;
+  repoName: string;
+}

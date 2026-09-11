@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -480,4 +481,83 @@ func isAlreadyExists(err error) bool {
 		}
 	}
 	return false
+}
+
+// ---------------------------------------------------------------------------
+// 上次用过的信息（避免每次都重新输入）
+// ---------------------------------------------------------------------------
+
+// PublishDefaults 是上传对话框的预填值。
+type PublishDefaults struct {
+	// RemoteURL 是当前仓库已经配置的远端地址（通常是 origin）。
+	// 已经推过一次的仓库，地址直接从这里读，不用用户再填。
+	RemoteURL string `json:"remoteUrl"`
+	// RemoteName 是读到的远端名（origin / upstream …）
+	RemoteName string `json:"remoteName"`
+	// RepoName 是仓库目录名，给「新建仓库」时的仓库名做默认值
+	RepoName string `json:"repoName"`
+}
+
+// PublishDefaults 返回上传对话框可以预填的信息。
+func (e *Engine) PublishDefaults() (*PublishDefaults, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if err := e.requireRepoLocked(); err != nil {
+		return nil, err
+	}
+
+	out := &PublishDefaults{RepoName: filepath.Base(e.repoPath)}
+
+	// 先看 origin，没有就取第一个远端
+	for _, name := range []string{"origin", ""} {
+		args := []string{"remote", "get-url", name}
+		if name == "" {
+			// remote get-url 不带名字会报错，这里换成列出第一个
+			list, err := e.gitOutput("remote")
+			if err != nil {
+				continue
+			}
+			names := splitNonEmptyLines(list)
+			if len(names) == 0 {
+				continue
+			}
+			args = []string{"remote", "get-url", names[0]}
+		}
+		url, err := e.gitOutput(args...)
+		if err != nil {
+			continue
+		}
+		url = strings.TrimSpace(url)
+		if url == "" {
+			continue
+		}
+		// 去掉可能存在的凭据部分，避免把 token 显示到界面上
+		out.RemoteURL = stripCredentials(url)
+		if name == "" {
+			names, _ := e.gitOutput("remote")
+			if list := splitNonEmptyLines(names); len(list) > 0 {
+				out.RemoteName = list[0]
+			}
+		} else {
+			out.RemoteName = name
+		}
+		return out, nil
+	}
+
+	return out, nil
+}
+
+// stripCredentials 去掉 URL 里的 用户名:密码@ 部分。
+func stripCredentials(raw string) string {
+	if !strings.HasPrefix(raw, "http://") && !strings.HasPrefix(raw, "https://") {
+		return raw
+	}
+	schemeEnd := strings.Index(raw, "://") + 3
+	rest := raw[schemeEnd:]
+	at := strings.LastIndex(rest, "@")
+	if at == -1 {
+		return raw
+	}
+	return raw[:schemeEnd] + rest[at+1:]
 }
