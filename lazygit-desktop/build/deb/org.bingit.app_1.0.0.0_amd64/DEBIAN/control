@@ -1,0 +1,11 @@
+Package: org.bingit.app
+Version: 1.0.0.0
+Section: devel
+Priority: optional
+Architecture: amd64
+Installed-Size: 13312
+Maintainer: 小冰冰 <bingit@example.com>
+Depends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-0, libgtk-3-0
+Description: Bingit - a git client with a friendly interface
+ Bingit 是一个桌面版 Git 客户端，复用 lazygit 的 git 命令层，
+ 界面完全重写：文件树、行级暂存、提交图、冲突解决、音效等。

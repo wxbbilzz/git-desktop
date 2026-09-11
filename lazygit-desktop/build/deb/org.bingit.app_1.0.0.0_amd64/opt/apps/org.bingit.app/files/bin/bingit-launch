@@ -1,0 +1,20 @@
+#!/bin/sh
+# Bingit 启动脚本。
+#
+# 按 UOS 规范 §5：应用数据只能写自己的 XDG 目录，
+# 不能直接往 $HOME 里扔东西。这里把 lazygit 核心读配置用的
+# CONFIG_DIR 指到 $XDG_CONFIG_HOME/${appid}，其余目录也一并建好。
+APPID=org.bingit.app
+
+: "${XDG_CONFIG_HOME:=$HOME/.config}"
+: "${XDG_DATA_HOME:=$HOME/.local/share}"
+: "${XDG_CACHE_HOME:=$HOME/.cache}"
+
+export XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME
+export CONFIG_DIR="$XDG_CONFIG_HOME/$APPID"
+
+mkdir -p "$CONFIG_DIR" \
+         "$XDG_DATA_HOME/$APPID" \
+         "$XDG_CACHE_HOME/$APPID" 2>/dev/null || true
+
+exec "/opt/apps/$APPID/files/bin/bingit" "$@"
