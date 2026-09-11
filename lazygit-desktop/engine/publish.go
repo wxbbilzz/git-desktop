@@ -172,8 +172,17 @@ func (e *Engine) Publish(req PublishRequest, onProgress func(step string)) (*Pub
 
 	// ---- 3) 推送 ----
 	onProgress("正在推送代码")
-	pushURL := authenticatedURL(platform, repo, req.Token)
-	argv := []string{"push", "-u", pushURL, req.Branch + ":" + req.Branch}
+
+	// 关键：-u 后面必须跟**远程名**（origin），不能跟 URL。
+	//
+	// 如果跟 URL，git 会把 branch.<name>.remote 直接写成那个 URL，
+	// 于是这个分支就再也关联不上 refs/remotes/origin/<branch>：
+	//   · git rev-parse @{u} 报「not stored as a remote-tracking branch」
+	//   · origin/main 永远不会更新，界面上「领先/落后几个提交」全是错的
+	//
+	// 认证靠的是上面已经把 remote 的 URL 设成了带 token 的形式，
+	// 所以这里直接用名字推送即可。
+	argv := []string{"push", "-u", req.RemoteName, req.Branch + ":" + req.Branch}
 	res.Command = "git " + strings.Join(redact(argv), " ")
 
 	pushOut, pushErr := e.gitRun(argv...)

@@ -150,15 +150,15 @@ func (a *App) CreateBranch(name string) (*engine.RepoSnapshot, error) {
 }
 
 func (a *App) Fetch() (*engine.RepoSnapshot, error) {
-	return a.engine.Fetch()
+	return a.engine.Fetch(a.progressEmitter())
 }
 
 func (a *App) Pull() (*engine.RepoSnapshot, error) {
-	return a.engine.Pull()
+	return a.engine.Pull(a.progressEmitter())
 }
 
 func (a *App) Push() (*engine.RepoSnapshot, error) {
-	return a.engine.Push()
+	return a.engine.Push(a.progressEmitter())
 }
 
 // ---------------------------------------------------------------------------
@@ -434,7 +434,19 @@ func (a *App) DeleteBranch(name string, force bool) (*engine.RepoSnapshot, error
 
 // PushSetUpstream 首次推送：把当前分支推上去并设置上游。
 func (a *App) PushSetUpstream(remote string) (*engine.RepoSnapshot, error) {
-	return a.engine.PushSetUpstream(remote)
+	return a.engine.PushSetUpstream(remote, a.progressEmitter())
+}
+
+// progressEmitter 把引擎的进度回调转成 Wails 事件推给前端。
+//
+// 事件名沿用克隆那套（同为「远端操作进度」），前端订阅一次即可。
+func (a *App) progressEmitter() func(engine.SyncProgress) {
+	return func(p engine.SyncProgress) {
+		if a.ctx == nil {
+			return
+		}
+		runtime.EventsEmit(a.ctx, "sync:progress", p)
+	}
 }
 
 // OperationChoices 返回操作面板里所有下拉的候选值。

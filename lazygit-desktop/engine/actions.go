@@ -1,8 +1,10 @@
 package engine
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -261,26 +263,34 @@ func (e *Engine) DeleteBranch(name string, force bool) (*RepoSnapshot, error) {
 // 同步（远端）
 // ---------------------------------------------------------------------------
 
-// syncOp 把一次远端操作包起来：加锁 → 执行 → 刷新快照。
+// syncOp 把一次远端操作包起来。
 //
-// 为什么不用 lazygit 的 SyncCommands？
+// 两个关键点：
 //
-// 它的 Fetch/Pull/Push 都调用了 PromptOnCredentialRequest(task)，那会把命令
-// **放进 PTY 执行**。git 因此认为自己在真终端里，遇到需要账号密码时会弹出
-// 提示并无限等待 —— 在没有终端的桌面应用里就是永久挂起（界面卡在"正在…"
-// 且按钮全部禁用）。
+//  1. **网络操作期间不持有引擎锁**。以前这里从头 lock 到尾，于是推送
+//     几秒钟里界面所有请求都被阻塞，整app 看起来像死机。现在只在校验参数
+//     和最后刷新快照时加锁，中间的网络传输是「无锁」的 —— 推送时你照样
+//     能看历史、看 diff。
 //
-// 这里用自己的 gitRun：不开 PTY，并显式设 GIT_TERMINAL_PROMPT=0，
-// 让需要凭据的远端立刻失败并给出可读的错误，而不是把界面拖死。
-func (e *Engine) syncOp(args []string, env ...string) (*RepoSnapshot, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	if err := e.requireRepoLocked(); err != nil {
-		return nil, err
+//  2. **流式读取 git 的输出**。git 会往 stderr 持续写进度，用 CombinedOutput
+//     会把它憋到结束才返回，界面上什么都看不到。这里逐行解析并回调出去。
+func (e *Engine) syncOp(args []string, env []string, onProgress func(SyncProgress)) (*RepoSnapshot, error) {
+	if onProgress == nil {
+		onProgress = func(SyncProgress) {}
 	}
 
-	if out, err := e.gitRunWith(append(env, "GIT_TERMINAL_PROMPT=0"), args...); err != nil {
+	// --- 短暂加锁：拿仓库路径、确认状态 ---
+	e.mu.Lock()
+	if err := e.requireRepoLocked(); err != nil {
+		e.mu.Unlock()
+		return nil, err
+	}
+	repoPath := e.repoPath
+	e.mu.Unlock()
+
+	// --- 无锁执行：这一步可能几十秒 ---
+	out, err := runGitStreaming(repoPath, args, env, onProgress)
+	if err != nil {
 		msg := firstErrorLine(out)
 		if msg == "" {
 			msg = err.Error()
@@ -288,40 +298,95 @@ func (e *Engine) syncOp(args []string, env ...string) (*RepoSnapshot, error) {
 		return nil, fmt.Errorf("%s", msg)
 	}
 
+	// --- 重新加锁：用最新状态刷新快照 ---
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	return e.snapshotLocked()
 }
 
+// SyncProgress 是远端操作的进度（和克隆共用一套解析）。
+type SyncProgress = CloneProgress
+
 // Fetch 拉取远端引用（不合并到本地分支）。
-func (e *Engine) Fetch() (*RepoSnapshot, error) {
-	args := []string{"fetch"}
+func (e *Engine) Fetch(onProgress func(SyncProgress)) (*RepoSnapshot, error) {
+	args := []string{"fetch", "--progress"}
 	if e.cmn.UserConfig().Git.FetchAll {
 		args = append(args, "--all")
 	}
 	// 不写 FETCH_HEAD，避免和并行的 pull 打架
 	args = append(args, "--no-write-fetch-head")
-	return e.syncOp(args)
+	return e.syncOp(args, nil, onProgress)
 }
 
 // Pull 拉取并合并当前分支。
 //
 // GIT_SEQUENCE_EDITOR=: 用来兜底：万一用户配了 pull.rebase=interactive，
 // 也能跳过交互式编辑。
-func (e *Engine) Pull() (*RepoSnapshot, error) {
-	return e.syncOp([]string{"pull", "--no-edit"}, "GIT_SEQUENCE_EDITOR=:")
+func (e *Engine) Pull(onProgress func(SyncProgress)) (*RepoSnapshot, error) {
+	return e.syncOp([]string{"pull", "--no-edit", "--progress"}, []string{"GIT_SEQUENCE_EDITOR=:"}, onProgress)
 }
 
 // Push 推送当前分支到它的上游。
-func (e *Engine) Push() (*RepoSnapshot, error) {
-	return e.syncOp([]string{"push"})
+func (e *Engine) Push(onProgress func(SyncProgress)) (*RepoSnapshot, error) {
+	return e.syncOp([]string{"push", "--progress"}, nil, onProgress)
 }
 
 // PushSetUpstream 首次推送：把当前分支推上去并设置上游。
-func (e *Engine) PushSetUpstream(remote string) (*RepoSnapshot, error) {
+func (e *Engine) PushSetUpstream(remote string, onProgress func(SyncProgress)) (*RepoSnapshot, error) {
 	remote = strings.TrimSpace(remote)
 	if remote == "" {
 		remote = "origin"
 	}
-	return e.syncOp([]string{"push", "--set-upstream", remote, "HEAD"})
+	return e.syncOp([]string{"push", "--progress", "--set-upstream", remote, "HEAD"}, nil, onProgress)
+}
+
+// runGitStreaming 执行 git 并逐行读取 stderr（git 的进度都写在这里）。
+//
+// 和克隆用的是同一套解析：splitOnCRLF（git 用 \r 原地刷新）+
+// parseCloneProgress（解析「阶段: 45%」）。
+func runGitStreaming(dir string, args []string, env []string, onProgress func(SyncProgress)) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(cmd.Environ(), env...)
+	// 没有终端，绝不能让 git 停下来等输入
+	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return "", err
+	}
+	var stdout strings.Builder
+	cmd.Stdout = &stdout
+
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+
+	scanner := bufio.NewScanner(stderr)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	scanner.Split(splitOnCRLF)
+
+	var lines []string
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		lines = append(lines, line)
+		onProgress(parseCloneProgress(line))
+	}
+
+	waitErr := cmd.Wait()
+
+	// stdout + stderr 合并返回，方便出错时提取信息
+	combined := stdout.String()
+	if len(lines) > 0 {
+		combined += strings.Join(lines, "\n")
+	}
+	if waitErr != nil && strings.TrimSpace(combined) == "" {
+		combined = waitErr.Error()
+	}
+	return combined, waitErr
 }
 
 // ---------------------------------------------------------------------------

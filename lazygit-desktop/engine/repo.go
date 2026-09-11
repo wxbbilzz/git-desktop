@@ -43,6 +43,7 @@ var phaseLabels = map[string]string{
 	"Counting objects":    "统计对象",
 	"Compressing objects": "压缩对象",
 	"Receiving objects":   "接收对象",
+	"Writing objects":     "上传对象",
 	"Resolving deltas":    "解析差异",
 	"Updating files":      "更新文件",
 	"Checking out files":  "检出文件",

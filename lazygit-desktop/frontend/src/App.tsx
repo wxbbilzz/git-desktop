@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, isDesktop, onRepoDropFailed, onRepoDropped } from "./api";
+import { api, isDesktop, onRepoDropFailed, onRepoDropped, onSyncProgress } from "./api";
 import { isSoundEnabled, setSoundEnabled, sfx } from "./sound";
 import type {
+  CloneProgress,
   CommitFileDTO,
   FilePatch,
   FolderInfo,
@@ -49,6 +50,8 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   // 打开了一个「还不是仓库」的文件夹时，先弹窗问要不要初始化
   const [pendingFolder, setPendingFolder] = useState<FolderInfo | null>(null);
+  // 远端操作的实时进度（push/pull/fetch）
+  const [syncProgress, setSyncProgress] = useState<CloneProgress | null>(null);
 
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
@@ -91,6 +94,7 @@ export default function App() {
         sfx.error();
       } finally {
         setBusy(null);
+        setSyncProgress(null);
       }
     },
     [reloadRepoFiles],
@@ -159,6 +163,12 @@ export default function App() {
   const refresh = useCallback(async () => {
     await run("刷新", () => api.snapshot());
   }, [run]);
+
+  // 订阅远端操作进度。推送大仓库时能看到「上传对象 45%」，
+  // 而不是盯着一个转圈等着。
+  useEffect(() => {
+    return onSyncProgress((p) => setSyncProgress(p));
+  }, []);
 
   // 启动时如果所在目录不是 git 仓库，直接问「要不要在这里建仓库」。
   // 这样 `cd 某个项目 && bingit` 就能一步到位。
@@ -433,7 +443,11 @@ export default function App() {
           {error
             ? error
             : busy
-              ? `正在${busy}…`
+              ? syncProgress && syncProgress.phase
+                ? `正在${busy}… ${syncProgress.phase}${
+                    syncProgress.percent >= 0 ? ` ${syncProgress.percent}%` : ""
+                  }`
+                : `正在${busy}…`
               : "浏览器预览模式：当前是演示数据，用 wails dev 运行才会操作真实仓库。"}
         </div>
       )}

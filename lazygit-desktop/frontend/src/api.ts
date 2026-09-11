@@ -140,6 +140,13 @@ export function isDesktop(): boolean {
   return !!bridge();
 }
 
+/** 订阅远端操作（push/pull/fetch）的进度事件。 */
+export function onSyncProgress(cb: (p: CloneProgress) => void): () => void {
+  const rt = typeof window !== "undefined" ? window.runtime : undefined;
+  if (!rt?.EventsOn) return () => {};
+  return rt.EventsOn("sync:progress", cb as (...args: any[]) => void);
+}
+
 /** 订阅「文件夹被拖进窗口」事件；返回取消订阅的函数。 */
 export function onRepoDropped(cb: (dir: string) => void): () => void {
   const rt = typeof window !== "undefined" ? window.runtime : undefined;
