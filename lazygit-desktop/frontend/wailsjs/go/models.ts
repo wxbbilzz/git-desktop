@@ -150,6 +150,28 @@ export namespace engine {
 		    return a;
 		}
 	}
+	export class FileContentDTO {
+	    path: string;
+	    content: string;
+	    binary: boolean;
+	    truncated: boolean;
+	    lines: number;
+	    size: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileContentDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.content = source["content"];
+	        this.binary = source["binary"];
+	        this.truncated = source["truncated"];
+	        this.lines = source["lines"];
+	        this.size = source["size"];
+	    }
+	}
 	export class FileDTO {
 	    path: string;
 	    previousPath: string;
@@ -403,6 +425,18 @@ export namespace engine {
 		    }
 		    return a;
 		}
+	}
+	export class RepoFileDTO {
+	    path: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RepoFileDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	    }
 	}
 	
 	export class RunResult {

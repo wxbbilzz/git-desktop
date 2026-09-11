@@ -117,3 +117,72 @@ export function allDirPaths(nodes: TreeNode[]): string[] {
   walk(nodes);
   return out;
 }
+
+// ---------------------------------------------------------------- 纯路径树
+//
+// 完整仓库文件树只需要路径，不需要 FileDTO，所以单独一套（算法相同）。
+
+export interface PathLeaf {
+  type: "file";
+  name: string;
+  path: string;
+}
+export interface PathDir {
+  type: "dir";
+  name: string;
+  path: string;
+  children: PathNode[];
+}
+export type PathNode = PathLeaf | PathDir;
+
+export function buildPathTree(paths: string[]): PathNode[] {
+  const root: PathDir = { type: "dir", name: "", path: "", children: [] };
+  const dirs = new Map<string, PathDir>([["", root]]);
+
+  for (const p of paths) {
+    const parts = p.split("/");
+    let cur = root;
+    let acc = "";
+    for (let i = 0; i < parts.length - 1; i++) {
+      acc = acc ? `${acc}/${parts[i]}` : parts[i];
+      let next = dirs.get(acc);
+      if (!next) {
+        next = { type: "dir", name: parts[i], path: acc, children: [] };
+        dirs.set(acc, next);
+        cur.children.push(next);
+      }
+      cur = next;
+    }
+    cur.children.push({ type: "file", name: parts[parts.length - 1], path: p });
+  }
+
+  sortPathNodes(root);
+  compressPath(root);
+  return root.children;
+}
+
+function sortPathNodes(dir: PathDir): void {
+  dir.children.sort((a, b) => {
+    if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+    return a.name.localeCompare(b.name, "zh");
+  });
+  for (const c of dir.children) if (c.type === "dir") sortPathNodes(c);
+}
+
+function compressPath(dir: PathDir): void {
+  dir.children = dir.children.map((child) => {
+    if (child.type !== "dir") return child;
+    let node = child;
+    while (node.children.length === 1 && node.children[0].type === "dir") {
+      const only = node.children[0] as PathDir;
+      node = {
+        type: "dir",
+        name: `${node.name}/${only.name}`,
+        path: only.path,
+        children: only.children,
+      };
+    }
+    compressPath(node);
+    return node;
+  });
+}

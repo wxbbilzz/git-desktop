@@ -137,6 +137,22 @@ export function FileTree({
       );
     });
 
+  // 没有改动时给出明确提示，而不是留一片空白
+  if (files.length === 0) {
+    return (
+      <div className="empty">
+        <div className="empty-title">
+          {staged ? "暂存区是空的" : "工作区是干净的"}
+        </div>
+        <div className="empty-text">
+          {staged
+            ? "在工作区里点 + 号把改动放进暂存区。"
+            : "没有未提交的改动。想看仓库里都有什么，切到「文件」标签。"}
+        </div>
+      </div>
+    );
+  }
+
   return <div className="tree">{renderNodes(tree, 0)}</div>;
 }
 

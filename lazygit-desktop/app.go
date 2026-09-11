@@ -34,6 +34,22 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
+	// 把文件夹（或文件）拖进窗口即可打开它所在的仓库。
+	// Wails 会把拖进来的绝对路径交给我们，这里往上找 .git，
+	// 所以拖仓库里的任意子目录也能正确打开整个仓库。
+	runtime.OnFileDrop(ctx, func(_ int, _ int, paths []string) {
+		if len(paths) == 0 {
+			return
+		}
+		dir, err := resolveDroppedRepo(paths[0])
+		if err != nil {
+			runtime.EventsEmit(ctx, "repo:drop-failed", paths[0], err.Error())
+			return
+		}
+		// 交给前端去调 OpenRepo，这样加载状态和错误提示都在一处
+		runtime.EventsEmit(ctx, "repo:dropped", dir)
+	})
+
 	// 尽力打开启动目录。不是 git 仓库也没关系，
 	// 前端会显示「选择仓库」的空状态。
 	if wd, err := os.Getwd(); err == nil {
@@ -323,4 +339,71 @@ func (a *App) StashApply(index int) (*engine.RepoSnapshot, error) {
 
 func (a *App) StashDrop(index int) (*engine.RepoSnapshot, error) {
 	return a.engine.StashDrop(index)
+}
+
+// ---------------------------------------------------------------------------
+// 拖拽打开仓库
+// ---------------------------------------------------------------------------
+
+// resolveDroppedRepo 把一个拖进来的路径解析成仓库根目录。
+//
+// 拖进来的可能是：仓库目录本身、仓库里的某个子目录、或者某个文件。
+// 这三种情况都应该打开同一个仓库，所以这里一路往上找 .git。
+func resolveDroppedRepo(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+
+	info, err := os.Stat(abs)
+	if err != nil {
+		return "", fmt.Errorf("路径不存在")
+	}
+
+	dir := abs
+	if !info.IsDir() {
+		dir = filepath.Dir(abs)
+	}
+
+	// 往上找，最多找到文件系统根
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+
+	// 没找到 .git：如果拖进来的本身就是个目录，交给上层去报错
+	if info.IsDir() {
+		return abs, nil
+	}
+	return "", fmt.Errorf("这里不是 git 仓库")
+}
+
+// ---------------------------------------------------------------------------
+// 仓库文件树
+// ---------------------------------------------------------------------------
+
+// RepoFiles 列出仓库里的所有文件（已跟踪 + 未忽略的未跟踪文件）。
+func (a *App) RepoFiles() ([]engine.RepoFileDTO, error) {
+	return a.engine.RepoFiles()
+}
+
+// FileContent 读取文件内容，用于界面上的只读浏览。
+func (a *App) FileContent(path string) (*engine.FileContentDTO, error) {
+	return a.engine.FileContent(path)
+}
+
+// PathInfo 返回拖拽提示用不到的额外信息（保留给以后扩展）。
+func (a *App) IsGitRepo(path string) bool {
+	p, err := resolveDroppedRepo(path)
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(filepath.Join(p, ".git"))
+	return err == nil
 }

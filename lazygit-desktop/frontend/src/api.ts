@@ -12,9 +12,11 @@ import type {
   CommitFileDTO,
   ConflictChoice,
   ConflictFile,
+  FileContentDTO,
   FilePatch,
   OperationSummary,
   PublishResult,
+  RepoFileDTO,
   RepoSnapshot,
   RunResult,
   StashEntryDTO,
@@ -86,6 +88,10 @@ interface DesktopBridge {
   StashApply(index: number): Promise<RepoSnapshot>;
   StashDrop(index: number): Promise<RepoSnapshot>;
 
+  // 完整仓库文件树
+  RepoFiles(): Promise<RepoFileDTO[]>;
+  FileContent(path: string): Promise<FileContentDTO>;
+
   // 上传到托管平台
   Publish(
     platform: string,
@@ -114,6 +120,22 @@ function bridge(): DesktopBridge | undefined {
 /** 是否运行在 Wails 桌面外壳里（false 表示浏览器预览模式）。 */
 export function isDesktop(): boolean {
   return !!bridge();
+}
+
+/** 订阅「文件夹被拖进窗口」事件；返回取消订阅的函数。 */
+export function onRepoDropped(cb: (dir: string) => void): () => void {
+  const rt = typeof window !== "undefined" ? window.runtime : undefined;
+  if (!rt?.EventsOn) return () => {};
+  return rt.EventsOn("repo:dropped", cb as (...args: any[]) => void);
+}
+
+/** 订阅「拖进来的东西不是仓库」事件。 */
+export function onRepoDropFailed(
+  cb: (path: string, reason: string) => void,
+): () => void {
+  const rt = typeof window !== "undefined" ? window.runtime : undefined;
+  if (!rt?.EventsOn) return () => {};
+  return rt.EventsOn("repo:drop-failed", cb as (...args: any[]) => void);
 }
 
 /** 订阅上传进度事件；返回取消订阅的函数。 */
@@ -436,5 +458,19 @@ export const api = {
     const b = bridge();
     if (!b) return mockSnapshot();
     return b.StashDrop(index);
+  },
+
+  async repoFiles(): Promise<RepoFileDTO[]> {
+    const b = bridge();
+    if (!b) return [];
+    return b.RepoFiles();
+  },
+
+  async fileContent(path: string): Promise<FileContentDTO> {
+    const b = bridge();
+    if (!b) {
+      return { path, content: "", binary: false, truncated: false, lines: 0, size: 0 };
+    }
+    return b.FileContent(path);
   },
 };

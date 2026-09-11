@@ -59,7 +59,7 @@ export interface RepoSnapshot {
   branches: BranchDTO[];
 }
 
-export type SidebarTab = "changes" | "staged" | "branches";
+export type SidebarTab = "changes" | "staged" | "branches" | "files";
 
 export interface Selection {
   // 选中一个文件时，需要同时知道它在工作区还是暂存区，因为两者 diff 不同
@@ -182,4 +182,19 @@ export interface StashEntryDTO {
   ref: string;
   message: string;
   branch: string;
+}
+
+/** 仓库里的一个文件（完整文件树用）。 */
+export interface RepoFileDTO {
+  path: string;
+}
+
+/** 只读浏览的文件内容。 */
+export interface FileContentDTO {
+  path: string;
+  content: string;
+  binary: boolean;
+  truncated: boolean;
+  lines: number;
+  size: number;
 }

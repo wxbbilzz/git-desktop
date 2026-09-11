@@ -1,7 +1,8 @@
 import { useState } from "react";
-import type { BranchDTO, FileDTO, RepoSnapshot, SidebarTab } from "../types";
+import type { BranchDTO, FileDTO, RepoFileDTO, RepoSnapshot, SidebarTab } from "../types";
 import { PillButton } from "./PillButton";
 import { FileTree } from "./FileTree";
+import { RepoFileTree } from "./RepoFileTree";
 import {
   IconBranch,
   IconCheck,
@@ -27,6 +28,10 @@ interface Props {
   onUnstageAll: () => void;
   onDiscard: (path: string) => void;
   onCheckoutBranch: (name: string) => void;
+  // 完整仓库文件树
+  repoFiles: RepoFileDTO[];
+  selectedRepoFile: string | null;
+  onSelectRepoFile: (path: string) => void;
 }
 
 function splitPath(path: string): { name: string; dir: string } {
@@ -169,6 +174,9 @@ export function Sidebar({
   onUnstageAll,
   onDiscard,
   onCheckoutBranch,
+  repoFiles,
+  selectedRepoFile,
+  onSelectRepoFile,
 }: Props) {
   // 文件视图：目录树 或 平铺列表
   const [viewMode, setViewMode] = useState<"tree" | "flat">("tree");
@@ -199,6 +207,12 @@ export function Sidebar({
             onClick={() => onTabChange("branches")}
           >
             分支<span className="count">{snapshot.branches.length}</span>
+          </button>
+          <button
+            className={"tab" + (tab === "files" ? " active" : "")}
+            onClick={() => onTabChange("files")}
+          >
+            文件<span className="count">{repoFiles.length}</span>
           </button>
         </div>
 
@@ -315,6 +329,25 @@ export function Sidebar({
                 </div>
               )}
             </div>
+            )}
+          </>
+        )}
+
+        {tab === "files" && (
+          <>
+            {repoFiles.length === 0 ? (
+              <div className="empty">
+                <div className="empty-title">正在读取文件列表…</div>
+                <div className="empty-text">
+                  数量：{repoFiles.length}（若一直为 0，说明没取到数据）
+                </div>
+              </div>
+            ) : (
+              <RepoFileTree
+                files={repoFiles}
+                selectedPath={selectedRepoFile}
+                onSelectFile={onSelectRepoFile}
+              />
             )}
           </>
         )}

@@ -54,6 +54,10 @@ export function Fetch() {
   return window['go']['main']['App']['Fetch']();
 }
 
+export function FileContent(arg1) {
+  return window['go']['main']['App']['FileContent'](arg1);
+}
+
 export function FileDiff(arg1, arg2) {
   return window['go']['main']['App']['FileDiff'](arg1, arg2);
 }
@@ -64,6 +68,10 @@ export function FilePatchLines(arg1, arg2) {
 
 export function Identity() {
   return window['go']['main']['App']['Identity']();
+}
+
+export function IsGitRepo(arg1) {
+  return window['go']['main']['App']['IsGitRepo'](arg1);
 }
 
 export function JoinPath(arg1, arg2) {
@@ -100,6 +108,10 @@ export function Push() {
 
 export function ReadConflictFile(arg1) {
   return window['go']['main']['App']['ReadConflictFile'](arg1);
+}
+
+export function RepoFiles() {
+  return window['go']['main']['App']['RepoFiles']();
 }
 
 export function ResolveConflicts(arg1, arg2) {

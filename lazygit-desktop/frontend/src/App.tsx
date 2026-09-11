@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, isDesktop } from "./api";
+import { api, isDesktop, onRepoDropFailed, onRepoDropped } from "./api";
 import { isSoundEnabled, setSoundEnabled, sfx } from "./sound";
-import type { CommitFileDTO, FilePatch, RepoSnapshot, SidebarTab } from "./types";
+import type {
+  CommitFileDTO,
+  FilePatch,
+  RepoFileDTO,
+  RepoSnapshot,
+  SidebarTab,
+} from "./types";
 import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
 import { DiffPanel } from "./components/DiffPanel";
@@ -10,6 +16,7 @@ import { HistoryPanel } from "./components/HistoryPanel";
 import { Welcome } from "./components/Welcome";
 import { Operations } from "./components/Operations";
 import { PublishDialog } from "./components/PublishDialog";
+import { FileViewer } from "./components/FileViewer";
 
 // App 只负责“编排”：持有界面状态、调用 api、把结果分发到各面板。
 // 它不包含任何 git 逻辑 —— 那是引擎的职责。
@@ -32,6 +39,11 @@ export default function App() {
   const [filePatch, setFilePatch] = useState<FilePatch | null>(null);
   // 当前勾选的行（索引）
   const [selectedLines, setSelectedLines] = useState<Set<number>>(new Set());
+  // 完整仓库文件树 + 当前正在浏览的文件
+  const [repoFiles, setRepoFiles] = useState<RepoFileDTO[]>([]);
+  const [selectedRepoFile, setSelectedRepoFile] = useState<string | null>(null);
+  // 拖拽时的遮罩
+  const [dragging, setDragging] = useState(false);
 
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
@@ -45,6 +57,17 @@ export default function App() {
   // 音效开关
   const [sound, setSound] = useState(isSoundEnabled());
 
+  // 完整仓库文件树。凡是拿到新快照的地方都要跟着刷新它，
+  // 所以直接挂在 run() 里，而不是靠 useEffect 的依赖变化去猜。
+  const reloadRepoFiles = useCallback(async () => {
+    try {
+      setRepoFiles(await api.repoFiles());
+    } catch (e) {
+      setRepoFiles([]);
+      setError("读取文件列表失败：" + (e instanceof Error ? e.message : String(e)));
+    }
+  }, []);
+
   /** 统一处理一次“动作 → 新快照”的往返，并维护忙碌态与错误提示。 */
   const run = useCallback(
     async (label: string, fn: () => Promise<RepoSnapshot | null>) => {
@@ -52,7 +75,11 @@ export default function App() {
       setError(null);
       try {
         const next = await fn();
-        if (next) setSnapshot(next);
+        if (next) {
+          setSnapshot(next);
+          // 文件集合可能变了（提交、丢弃、切换分支…），跟着刷新
+          void reloadRepoFiles();
+        }
         playFor(label);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -61,7 +88,7 @@ export default function App() {
         setBusy(null);
       }
     },
-    [],
+    [reloadRepoFiles],
   );
 
   // 按操作语义挑音效：同一个 run() 入口，不同操作给不同反馈
@@ -199,7 +226,49 @@ export default function App() {
   useEffect(() => {
     setSelectedPath(null);
     setSelectedCommit(null);
+    setSelectedRepoFile(null);
   }, [snapshot?.repoPath]);
+
+  // 把文件夹拖进窗口即可打开仓库
+  useEffect(() => {
+    const offDrop = onRepoDropped((dir) => {
+      setDragging(false);
+      void run("打开拖入的仓库", async () => {
+        const snap = await api.openRepo(dir);
+        setTab("files");
+        return snap;
+      });
+    });
+    const offFail = onRepoDropFailed((_path, reason) => {
+      setDragging(false);
+      setError(reason);
+      sfx.error();
+    });
+    return () => {
+      offDrop();
+      offFail();
+    };
+  }, [run]);
+
+  // 拖拽的可视反馈（Wails 负责实际接收，这里只做提示）
+  useEffect(() => {
+    const onEnter = (e: DragEvent) => {
+      e.preventDefault();
+      setDragging(true);
+    };
+    const onOver = (e: DragEvent) => e.preventDefault();
+    const onLeave = (e: DragEvent) => {
+      if (e.relatedTarget === null) setDragging(false);
+    };
+    window.addEventListener("dragenter", onEnter);
+    window.addEventListener("dragover", onOver);
+    window.addEventListener("dragleave", onLeave);
+    return () => {
+      window.removeEventListener("dragenter", onEnter);
+      window.removeEventListener("dragover", onOver);
+      window.removeEventListener("dragleave", onLeave);
+    };
+  }, []);
 
   // 没有打开任何仓库时，显示启动界面：
   // 新建仓库 / 打开本地仓库 / 从网址下载仓库 三个入口都在那里。
@@ -252,7 +321,7 @@ export default function App() {
   };
 
   return (
-    <div className="app">
+    <div className="app" data-drop-target>
       <TopBar
         snapshot={snapshot}
         busy={busy}
@@ -306,8 +375,20 @@ export default function App() {
           onCheckoutBranch={(name) =>
             void run("切换分支", () => api.checkoutBranch(name))
           }
+          repoFiles={repoFiles}
+          selectedRepoFile={selectedRepoFile}
+          onSelectRepoFile={(p) => {
+            sfx.select();
+            setSelectedRepoFile(p);
+          }}
         />
 
+        {selectedRepoFile ? (
+          <FileViewer
+            path={selectedRepoFile}
+            onClose={() => setSelectedRepoFile(null)}
+          />
+        ) : (
         <DiffPanel
           mode={selectedCommit ? "commit" : "file"}
           path={selectedPath}
@@ -366,6 +447,7 @@ export default function App() {
             handleDiscard(selectedPath);
           }}
         />
+        )}
 
         <div className="right-col">
           <CommitPanel
@@ -389,6 +471,18 @@ export default function App() {
           />
         </div>
       </div>
+
+      {dragging && (
+        <div className="drop-overlay">
+          <div className="drop-card">
+            <div className="drop-icon">📂</div>
+            <div className="drop-title">松开即可打开这个仓库</div>
+            <div className="drop-hint">
+              把文件夹（或仓库里的任意文件/子目录）拖进来都可以
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPublish && (
         <PublishDialog

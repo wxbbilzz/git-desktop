@@ -28,11 +28,15 @@ export function DiscardFile(arg1:string):Promise<engine.RepoSnapshot>;
 
 export function Fetch():Promise<engine.RepoSnapshot>;
 
+export function FileContent(arg1:string):Promise<engine.FileContentDTO>;
+
 export function FileDiff(arg1:string,arg2:boolean):Promise<string>;
 
 export function FilePatchLines(arg1:string,arg2:boolean):Promise<engine.FilePatch>;
 
 export function Identity():Promise<string|string>;
+
+export function IsGitRepo(arg1:string):Promise<boolean>;
 
 export function JoinPath(arg1:string,arg2:string):Promise<string>;
 
@@ -51,6 +55,8 @@ export function Pull():Promise<engine.RepoSnapshot>;
 export function Push():Promise<engine.RepoSnapshot>;
 
 export function ReadConflictFile(arg1:string):Promise<engine.ConflictFile>;
+
+export function RepoFiles():Promise<Array<engine.RepoFileDTO>>;
 
 export function ResolveConflicts(arg1:string,arg2:Array<engine.ConflictChoice>):Promise<engine.RepoSnapshot>;
 
