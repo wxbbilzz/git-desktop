@@ -1,8 +1,15 @@
-# Lazygit Desktop
+<img src="assets/bingit-icon.svg" width="96" align="left" hspace="16" vspace="4">
 
-按 **方案 B：复用核心，重写 UI** 实现的 lazygit 桌面客户端。
+# Bingit
 
-> **本机已构建完成。** 终端里 `cd` 到任意 git 仓库后运行 `lazygit-desktop` 即可。
+**冰冰的 git 客户端** —— 复用 lazygit 核心逻辑、重写界面的桌面版 Git 工具。
+
+> 名字来自 **冰（bīng）+ git**，读起来像 "bing it"。图标是**冰晶与 git 分支的融合**：
+> 主干加两条对称侧枝构成 git 图，枝杈末端带冰晶碎片。
+
+<br clear="left">
+
+> **本机已构建完成。** 终端里 `cd` 到任意 git 仓库后运行 `bingit` 即可。
 > 详见下方「二、运行方式」。
 
 一句话概括：**git 逻辑继续用 lazygit 的，界面换成带圆角边框和胶囊按钮的桌面 App。**
@@ -48,7 +55,7 @@
 ### 目录
 
 ```
-lazygit-desktop/
+bingit/
 ├── main.go                   Wails 入口（窗口、嵌入前端产物）
 ├── app.go                    绑定给前端的薄转发层
 ├── engine/
@@ -78,7 +85,7 @@ cd /path/to/你的仓库
 lazygit-desktop
 ```
 
-`lazygit-desktop` 已链接到 `/usr/local/bin`，任何目录都能直接调用。
+`bingit` 已链接到 `/usr/local/bin`，任何目录都能直接调用。
 它会自动打开**当前所在目录**对应的 git 仓库。
 
 > 如果当前目录不在任何 git 仓库里，程序会打开，并显示「还没有打开仓库」
@@ -87,7 +94,7 @@ lazygit-desktop
 ### 直接运行二进制
 
 ```bash
-/home/wxbbi/Desktop/lazygit-desktop/build/bin/lazygit-desktop
+/home/wxbbi/Desktop/bingit/build/bin/lazygit-desktop
 ```
 
 效果和上面一样，只是不依赖 `PATH` 里的软链接。
@@ -134,7 +141,7 @@ wails dev
 或纯浏览器预览界面（用内置演示数据，不碰真实仓库）：
 
 ```bash
-cd /home/wxbbi/Desktop/lazygit-desktop/frontend
+cd /home/wxbbi/Desktop/bingit/frontend
 npm run dev     # 打开 http://localhost:5173
 ```
 
@@ -153,7 +160,7 @@ go run ./cmd/dump /path/to/repo    # 直接打印引擎读到的 JSON 快照
 回退到 `mock.ts` 的演示数据。所以调样式时：
 
 ```bash
-cd /home/wxbbi/Desktop/lazygit-desktop/frontend
+cd /home/wxbbi/Desktop/bingit/frontend
 npm install
 npm run dev
 ```

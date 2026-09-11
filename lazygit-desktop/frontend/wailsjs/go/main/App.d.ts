@@ -8,6 +8,8 @@ export function ChooseAndOpenRepo():Promise<engine.RepoSnapshot>;
 
 export function CloneRepo(arg1:string,arg2:string,arg3:number):Promise<engine.RepoSnapshot>;
 
+export function CloseWindow():Promise<void>;
+
 export function Commit(arg1:string,arg2:string):Promise<engine.RepoSnapshot>;
 
 export function CommitDiff(arg1:string):Promise<string>;
@@ -42,7 +44,11 @@ export function Identity():Promise<string|string>;
 
 export function IsGitRepo(arg1:string):Promise<boolean>;
 
+export function IsWindowMaximised():Promise<boolean>;
+
 export function JoinPath(arg1:string,arg2:string):Promise<string>;
+
+export function MinimiseWindow():Promise<void>;
 
 export function OpenRepo(arg1:string):Promise<engine.RepoSnapshot>;
 
@@ -95,6 +101,8 @@ export function StashSave(arg1:string,arg2:boolean):Promise<engine.RepoSnapshot>
 export function StashShow(arg1:number):Promise<string>;
 
 export function Stashes():Promise<Array<engine.StashEntryDTO>>;
+
+export function ToggleMaximiseWindow():Promise<void>;
 
 export function UnstageAll():Promise<engine.RepoSnapshot>;
 

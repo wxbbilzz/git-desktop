@@ -441,3 +441,36 @@ func (a *App) OperationChoices() (*engine.OperationChoices, error) {
 func (a *App) PublishDefaults() (*engine.PublishDefaults, error) {
 	return a.engine.PublishDefaults()
 }
+
+// ---------------------------------------------------------------------------
+// 窗口控制（自绘标题栏用）
+// ---------------------------------------------------------------------------
+
+// MinimiseWindow 最小化窗口。
+func (a *App) MinimiseWindow() {
+	if a.ctx != nil {
+		runtime.WindowMinimise(a.ctx)
+	}
+}
+
+// ToggleMaximiseWindow 在最大化和还原之间切换。
+func (a *App) ToggleMaximiseWindow() {
+	if a.ctx != nil {
+		runtime.WindowToggleMaximise(a.ctx)
+	}
+}
+
+// IsWindowMaximised 返回窗口当前是否最大化（自绘标题栏用它切换按钮图标）。
+func (a *App) IsWindowMaximised() bool {
+	if a.ctx == nil {
+		return false
+	}
+	return runtime.WindowIsMaximised(a.ctx)
+}
+
+// CloseWindow 关闭应用。
+func (a *App) CloseWindow() {
+	if a.ctx != nil {
+		runtime.Quit(a.ctx)
+	}
+}

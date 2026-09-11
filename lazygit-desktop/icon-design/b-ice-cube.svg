@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="b-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e3a8a"/>
+    </linearGradient>
+    <linearGradient id="b-ice" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#e0f7ff"/>
+      <stop offset="100%" stop-color="#7dd3fc"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="6" y="6" width="244" height="244" rx="60" fill="url(#b-bg)"/>
+
+  <!-- 小冰块的顶面（斜切，做出立体感） -->
+  <path d="M60 96 L128 62 L196 96 L128 130 Z" fill="#f0fbff"/>
+  <path d="M60 96 L60 166 L128 200 L128 130 Z" fill="url(#b-ice)"/>
+  <path d="M196 96 L196 166 L128 200 L128 130 Z" fill="#bae6fd"/>
+
+  <!-- 表情：一只小冰冰 -->
+  <g fill="#0c4a6e">
+    <ellipse cx="112" cy="140" rx="7" ry="9"/>
+    <ellipse cx="144" cy="140" rx="7" ry="9"/>
+  </g>
+  <path d="M116 160 Q128 170 140 160" stroke="#0c4a6e" stroke-width="5"
+        stroke-linecap="round" fill="none"/>
+  <!-- 腮红 -->
+  <g fill="#fda4af" opacity="0.75">
+    <circle cx="101" cy="154" r="6"/>
+    <circle cx="155" cy="154" r="6"/>
+  </g>
+
+  <!-- 身上的 git 分支符号 -->
+  <g stroke="#0369a1" stroke-width="6" stroke-linecap="round" fill="none">
+    <path d="M96 106 L96 122"/>
+    <path d="M160 106 L160 122"/>
+    <path d="M96 122 Q128 134 160 122"/>
+  </g>
+  <g fill="#0369a1">
+    <circle cx="96" cy="100" r="9"/>
+    <circle cx="160" cy="100" r="9"/>
+    <circle cx="128" cy="128" r="9"/>
+  </g>
+</svg>

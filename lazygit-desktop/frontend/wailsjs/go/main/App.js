@@ -14,6 +14,10 @@ export function CloneRepo(arg1, arg2, arg3) {
   return window['go']['main']['App']['CloneRepo'](arg1, arg2, arg3);
 }
 
+export function CloseWindow() {
+  return window['go']['main']['App']['CloseWindow']();
+}
+
 export function Commit(arg1, arg2) {
   return window['go']['main']['App']['Commit'](arg1, arg2);
 }
@@ -82,8 +86,16 @@ export function IsGitRepo(arg1) {
   return window['go']['main']['App']['IsGitRepo'](arg1);
 }
 
+export function IsWindowMaximised() {
+  return window['go']['main']['App']['IsWindowMaximised']();
+}
+
 export function JoinPath(arg1, arg2) {
   return window['go']['main']['App']['JoinPath'](arg1, arg2);
+}
+
+export function MinimiseWindow() {
+  return window['go']['main']['App']['MinimiseWindow']();
 }
 
 export function OpenRepo(arg1) {
@@ -188,6 +200,10 @@ export function StashShow(arg1) {
 
 export function Stashes() {
   return window['go']['main']['App']['Stashes']();
+}
+
+export function ToggleMaximiseWindow() {
+  return window['go']['main']['App']['ToggleMaximiseWindow']();
 }
 
 export function UnstageAll() {

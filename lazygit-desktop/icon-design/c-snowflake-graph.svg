@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="c-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#164e63"/>
+      <stop offset="100%" stop-color="#0c4a6e"/>
+    </linearGradient>
+    <linearGradient id="c-line" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a5f3fc"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="6" y="6" width="244" height="244" rx="60" fill="url(#c-bg)"/>
+
+  <!-- 六角雪花＝六条分支，每条枝上都挂着提交节点 -->
+  <g stroke="url(#c-line)" stroke-width="6" stroke-linecap="round" fill="none"
+     transform="translate(128 128)">
+    <g id="c-arms">
+      <path d="M0 0 L0 -78"/>
+      <path d="M0 0 L68 -39"/>
+      <path d="M0 0 L68 39"/>
+      <path d="M0 0 L0 78"/>
+      <path d="M0 0 L-68 39"/>
+      <path d="M0 0 L-68 -39"/>
+    </g>
+    <!-- 枝杈（雪花的小分叉） -->
+    <g stroke-width="4" opacity="0.8">
+      <path d="M0 -50 L-16 -66 M0 -50 L16 -66"/>
+      <path d="M44 -25 L60 -22 M44 -25 L42 -41"/>
+      <path d="M44 25 L60 22 M44 25 L42 41"/>
+      <path d="M0 50 L-16 66 M0 50 L16 66"/>
+      <path d="M-44 25 L-60 22 M-44 25 L-42 41"/>
+      <path d="M-44 -25 L-60 -22 M-44 -25 L-42 -41"/>
+    </g>
+  </g>
+
+  <!-- 提交节点 -->
+  <g fill="#e0f7ff">
+    <circle cx="128" cy="128" r="14"/>
+    <circle cx="128" cy="50" r="10"/>
+    <circle cx="196" cy="89" r="10"/>
+    <circle cx="196" cy="167" r="10"/>
+    <circle cx="128" cy="206" r="10"/>
+    <circle cx="60" cy="167" r="10"/>
+    <circle cx="60" cy="89" r="10"/>
+  </g>
+</svg>

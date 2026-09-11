@@ -2160,3 +2160,108 @@ body {
   background: #1e2230;
   color: var(--text);
 }
+
+/* ==========================================================================
+   自绘标题栏
+   --------------------------------------------------------------------------
+   窗口是无边框的（Frameless），所以这条栏同时承担「应用标识」和「窗口控制」。
+   整条栏是拖动区域，按钮必须显式标成 no-drag，否则点击会被当成拖窗口。
+   ========================================================================== */
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 6px 0 12px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-panel);
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #1b1e29 0%, #14161d 100%);
+  user-select: none;
+  /* 交给 Wails：按住这条栏可以拖动整个窗口 */
+  --wails-draggable: drag;
+}
+
+.titlebar-logo {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border-radius: 6px;
+}
+
+.titlebar-name {
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  flex: 0 0 auto;
+}
+
+.titlebar-sep {
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.titlebar-repo {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+
+.titlebar-branch {
+  font-size: 10.5px;
+  font-family: var(--mono);
+  color: var(--accent-2);
+  background: var(--accent-soft);
+  border-radius: var(--radius-pill);
+  padding: 2px 9px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+
+.titlebar-spacer {
+  flex: 1 1 auto;
+}
+
+.titlebar-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  /* 按钮区不能拖动，否则点不动 */
+  --wails-draggable: no-drag;
+}
+
+.winbtn {
+  width: 34px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background-color 0.07s linear, color 0.07s linear;
+  --wails-draggable: no-drag;
+}
+
+.winbtn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text);
+}
+
+.winbtn-close:hover {
+  background: #e5484d;
+  color: #fff;
+}

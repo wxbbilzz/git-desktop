@@ -97,6 +97,12 @@ interface DesktopBridge {
   RepoFiles(): Promise<RepoFileDTO[]>;
   FileContent(path: string): Promise<FileContentDTO>;
 
+  // 窗口控制（自绘标题栏用）
+  MinimiseWindow(): void;
+  ToggleMaximiseWindow(): void;
+  IsWindowMaximised(): Promise<boolean>;
+  CloseWindow(): void;
+
   // 上传到托管平台
   PublishDefaults(): Promise<PublishDefaults>;
   Publish(
@@ -531,5 +537,24 @@ export const api = {
       };
     }
     return b.FileContent(path);
+  },
+
+  // ---- 窗口控制 ----
+
+  async minimiseWindow(): Promise<void> {
+    bridge()?.MinimiseWindow();
+  },
+
+  async toggleMaximiseWindow(): Promise<void> {
+    bridge()?.ToggleMaximiseWindow();
+  },
+
+  async isWindowMaximised(): Promise<boolean> {
+    const b = bridge();
+    return b ? b.IsWindowMaximised() : false;
+  },
+
+  async closeWindow(): Promise<void> {
+    bridge()?.CloseWindow();
   },
 };

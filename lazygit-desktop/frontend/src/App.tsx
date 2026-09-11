@@ -14,6 +14,7 @@ import { DiffPanel } from "./components/DiffPanel";
 import { CommitPanel } from "./components/CommitPanel";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { Welcome } from "./components/Welcome";
+import { TitleBar } from "./components/TitleBar";
 import { Operations } from "./components/Operations";
 import { PublishDialog } from "./components/PublishDialog";
 import { FileViewer } from "./components/FileViewer";
@@ -283,7 +284,8 @@ export default function App() {
   // 新建仓库 / 打开本地仓库 / 从网址下载仓库 三个入口都在那里。
   if (!snapshot) {
     return (
-      <div className="app">
+      <div className="app" data-drop-target>
+        <TitleBar />
         <Welcome onOpened={setSnapshot} />
       </div>
     );
@@ -331,6 +333,8 @@ export default function App() {
 
   return (
     <div className="app" data-drop-target>
+      <TitleBar repoName={snapshot.repoName} branch={snapshot.branch} />
+
       <TopBar
         snapshot={snapshot}
         busy={busy}
