@@ -52,7 +52,7 @@ export function PickDirectory(arg1:string):Promise<string>;
 
 export function PickRepo():Promise<string>;
 
-export function Publish(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean,arg6:boolean):Promise<engine.PublishResult>;
+export function Publish(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:boolean,arg8:boolean):Promise<engine.PublishResult>;
 
 export function Pull():Promise<engine.RepoSnapshot>;
 

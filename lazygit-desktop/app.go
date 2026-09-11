@@ -266,15 +266,19 @@ func (a *App) CommitFileDiff(hash string, path string) (string, error) {
 // 过程中会通过 "publish:progress" 事件推送当前步骤，前端可以显示进度。
 func (a *App) Publish(
 	platform string,
+	mode string,
 	token string,
 	name string,
 	description string,
+	repoURL string,
 	private bool,
 	storeToken bool,
 ) (*engine.PublishResult, error) {
 	return a.engine.Publish(
 		engine.PublishRequest{
 			Platform:    platform,
+			Mode:        mode,
+			RepoURL:     repoURL,
 			Token:       token,
 			Name:        name,
 			Description: description,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"strings"
 	"time"
@@ -29,7 +30,15 @@ const (
 
 // PublishRequest 是一次上传请求。
 type PublishRequest struct {
-	Platform    string `json:"platform"` // github / gitee
+	Platform string `json:"platform"` // github / gitee
+	// Mode 决定这次上传是「新建仓库」还是「推到已有仓库」
+	//   create   （默认）调平台 API 建一个新仓库
+	//   existing 跳过 API，直接推到 RepoURL 指定的仓库
+	Mode string `json:"mode"`
+	// RepoURL 只在 Mode=existing 时使用，例如
+	//   https://gitee.com/user/repo.git
+	//   git@gitee.com:user/repo.git
+	RepoURL     string `json:"repoUrl"`
 	Token       string `json:"token"`
 	Name        string `json:"name"` // 远端仓库名
 	Description string `json:"description"`
@@ -68,14 +77,24 @@ func (e *Engine) Publish(req PublishRequest, onProgress func(step string)) (*Pub
 	if platform != PlatformGitHub && platform != PlatformGitee {
 		return nil, fmt.Errorf("暂不支持该平台：%s", req.Platform)
 	}
-	if req.Token == "" {
+	// 只有 HTTP(S) 远端才需要 token：
+	// SSH 走密钥，本地路径 / file:// 根本不需要认证。
+	needsToken := true
+	if req.Mode == "existing" {
+		u := strings.TrimSpace(req.RepoURL)
+		needsToken = strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://")
+	}
+	if needsToken && req.Token == "" {
 		return nil, fmt.Errorf("请填写访问令牌（token）")
 	}
-	if req.Name == "" {
-		return nil, fmt.Errorf("请填写仓库名")
-	}
-	if !validRepoName(req.Name) {
-		return nil, fmt.Errorf("仓库名只能包含字母、数字、点、下划线和连字符")
+	// 「已有仓库」模式下仓库名是从地址里解析的，不需要单独填
+	if req.Mode != "existing" {
+		if req.Name == "" {
+			return nil, fmt.Errorf("请填写仓库名")
+		}
+		if !validRepoName(req.Name) {
+			return nil, fmt.Errorf("仓库名只能包含字母、数字、点、下划线和连字符")
+		}
 	}
 	if req.RemoteName == "" {
 		req.RemoteName = "origin"
@@ -102,13 +121,30 @@ func (e *Engine) Publish(req PublishRequest, onProgress func(step string)) (*Pub
 
 	res := &PublishResult{}
 
-	// ---- 1) 创建远端仓库 ----
-	onProgress("正在创建远端仓库")
-	repo, err := createRemoteRepo(platform, req)
-	if err != nil {
-		res.OK = false
-		res.Error = err.Error()
-		return res, nil
+	// ---- 1) 拿到远端仓库的信息 ----
+	var repo *createdRepo
+	var err error
+	if req.Mode == "existing" {
+		// 推到已有仓库：不调 API，直接从地址里解析出用户名和仓库名
+		onProgress("正在连接到已有仓库")
+		repo, err = parseRepoURL(req.RepoURL)
+		if err != nil {
+			res.Error = err.Error()
+			return res, nil
+		}
+	} else {
+		onProgress("正在创建远端仓库")
+		repo, err = createRemoteRepo(platform, req)
+		if err != nil {
+			// 仓库已存在是常见情况，给出可操作的提示而不是干巴巴的报错
+			if isAlreadyExists(err) {
+				res.Error = "远端已经有同名仓库了。如果那就是你要用的仓库，" +
+					"请把上传方式切换成「上传到已有仓库」并填写它的地址。"
+				return res, nil
+			}
+			res.Error = err.Error()
+			return res, nil
+		}
 	}
 	res.RepoURL = repo.htmlURL
 	res.CloneURL = repo.cloneURL
@@ -282,6 +318,13 @@ func createRemoteRepo(platform string, req PublishRequest) (*createdRepo, error)
 
 // authenticatedURL 拼出带凭据的 HTTPS 地址，仅用于推送，不会提交到仓库里。
 func authenticatedURL(platform string, repo *createdRepo, token string) string {
+	// 只有 HTTP(S) 才需要把 token 拼进地址：
+	//   SSH 走密钥，本地路径 / file:// 压根不需要认证。
+	// 往这些地址里塞 token 会得到一个根本连不上的 URL。
+	if !strings.HasPrefix(repo.cloneURL, "http://") && !strings.HasPrefix(repo.cloneURL, "https://") {
+		return repo.cloneURL
+	}
+
 	switch platform {
 	case PlatformGitHub:
 		// GitHub 用任意用户名 + token 作为密码即可
@@ -373,4 +416,68 @@ func (e *Engine) gitRunWith(extraEnv []string, args ...string) (string, error) {
 	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
 	out, err := cmd.CombinedOutput()
 	return string(out), err
+}
+
+// parseRepoURL 从用户填的仓库地址里解析出用户名和仓库名。
+//
+// 支持：
+//
+//	https://gitee.com/user/repo.git
+//	https://gitee.com/user/repo
+//	git@gitee.com:user/repo.git
+func parseRepoURL(raw string) (*createdRepo, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, fmt.Errorf("请填写仓库地址")
+	}
+
+	owner, name := "", ""
+
+	if strings.HasPrefix(raw, "git@") {
+		// git@host:owner/repo.git
+		i := strings.Index(raw, ":")
+		if i == -1 {
+			return nil, fmt.Errorf("SSH 地址格式不对，应该像 git@host:用户名/仓库名.git")
+		}
+		path := strings.TrimSuffix(strings.Trim(raw[i+1:], "/"), ".git")
+		parts := strings.Split(path, "/")
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("地址里看不出用户名和仓库名")
+		}
+		owner = parts[len(parts)-2]
+		name = parts[len(parts)-1]
+	} else {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return nil, fmt.Errorf("地址解析失败: %w", err)
+		}
+		path := strings.TrimSuffix(strings.Trim(u.Path, "/"), ".git")
+		parts := strings.Split(path, "/")
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("地址里看不出用户名和仓库名，应该像 https://gitee.com/用户名/仓库名.git")
+		}
+		owner = parts[len(parts)-2]
+		name = parts[len(parts)-1]
+	}
+
+	if owner == "" || name == "" {
+		return nil, fmt.Errorf("地址里看不出用户名和仓库名")
+	}
+
+	html := ""
+	if !strings.HasPrefix(raw, "git@") {
+		html = strings.TrimSuffix(strings.TrimSuffix(raw, "/"), ".git")
+	}
+	return &createdRepo{htmlURL: html, cloneURL: raw, owner: owner, name: name}, nil
+}
+
+// isAlreadyExists 判断平台返回的错误是不是「仓库已存在」。
+func isAlreadyExists(err error) bool {
+	msg := strings.ToLower(err.Error())
+	for _, kw := range []string{"already exist", "already exists", "已存在", "已被使用", "已被占用"} {
+		if strings.Contains(msg, kw) {
+			return true
+		}
+	}
+	return false
 }

@@ -97,9 +97,11 @@ interface DesktopBridge {
   // 上传到托管平台
   Publish(
     platform: string,
+    mode: string,
     token: string,
     name: string,
     description: string,
+    repoUrl: string,
     privateRepo: boolean,
     storeToken: boolean,
   ): Promise<PublishResult>;
@@ -385,9 +387,11 @@ export const api = {
 
   async publish(
     platform: string,
+    mode: string,
     token: string,
     name: string,
     description: string,
+    repoUrl: string,
     privateRepo: boolean,
     storeToken: boolean,
   ): Promise<PublishResult> {
@@ -403,7 +407,16 @@ export const api = {
         snapshot: null,
       };
     }
-    return b.Publish(platform, token, name, description, privateRepo, storeToken);
+    return b.Publish(
+      platform,
+      mode,
+      token,
+      name,
+      description,
+      repoUrl,
+      privateRepo,
+      storeToken,
+    );
   },
 
   // ---- 行级暂存 ----

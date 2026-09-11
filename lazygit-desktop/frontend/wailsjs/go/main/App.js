@@ -102,8 +102,8 @@ export function PickRepo() {
   return window['go']['main']['App']['PickRepo']();
 }
 
-export function Publish(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['Publish'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function Publish(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['main']['App']['Publish'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 export function Pull() {
