@@ -4,6 +4,7 @@ import { isSoundEnabled, setSoundEnabled, sfx } from "./sound";
 import type {
   CommitFileDTO,
   FilePatch,
+  FolderInfo,
   RepoFileDTO,
   RepoSnapshot,
   SidebarTab,
@@ -18,6 +19,7 @@ import { TitleBar } from "./components/TitleBar";
 import { Operations } from "./components/Operations";
 import { PublishDialog } from "./components/PublishDialog";
 import { FileViewer } from "./components/FileViewer";
+import { InitRepoPrompt } from "./components/InitRepoPrompt";
 
 // App 只负责“编排”：持有界面状态、调用 api、把结果分发到各面板。
 // 它不包含任何 git 逻辑 —— 那是引擎的职责。
@@ -45,6 +47,8 @@ export default function App() {
   const [selectedRepoFile, setSelectedRepoFile] = useState<string | null>(null);
   // 拖拽时的遮罩
   const [dragging, setDragging] = useState(false);
+  // 打开了一个「还不是仓库」的文件夹时，先弹窗问要不要初始化
+  const [pendingFolder, setPendingFolder] = useState<FolderInfo | null>(null);
 
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
@@ -92,6 +96,38 @@ export default function App() {
     [reloadRepoFiles],
   );
 
+  // 打开一个文件夹。它会先看看这个目录到底是什么情况：
+  //   · 本身就是仓库          -> 直接打开
+  //   · 是某个仓库的子目录    -> 打开那个仓库，并提示一下
+  //   · 完全不受 git 管理     -> 弹窗问「要不要在这里建仓库」
+  const openFolder = useCallback(
+    async (path: string) => {
+      try {
+        const info = await api.inspectFolder(path);
+
+        if (info.isRepo) {
+          await run("打开仓库", () => api.openRepo(path));
+          return;
+        }
+        if (info.parentRepo) {
+          // 拖进来的是子目录：打开它所属的仓库更符合预期
+          await run("打开仓库", async () => {
+            const snap = await api.openRepo(info.parentRepo);
+            setSelectedPath(null);
+            return snap;
+          });
+          setError(`「${path}」在仓库 ${info.parentRepo} 里面，已打开上级仓库。`);
+          return;
+        }
+        setPendingFolder(info);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [run],
+  );
+
+
   // 按操作语义挑音效：同一个 run() 入口，不同操作给不同反馈
   const playFor = (label: string) => {
     switch (label) {
@@ -123,6 +159,19 @@ export default function App() {
   const refresh = useCallback(async () => {
     await run("刷新", () => api.snapshot());
   }, [run]);
+
+  // 启动时如果所在目录不是 git 仓库，直接问「要不要在这里建仓库」。
+  // 这样 `cd 某个项目 && bingit` 就能一步到位。
+  useEffect(() => {
+    void (async () => {
+      try {
+        const info = await api.pendingStartupFolder();
+        if (info) setPendingFolder(info);
+      } catch {
+        /* 忽略 */
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -234,11 +283,8 @@ export default function App() {
   useEffect(() => {
     const offDrop = onRepoDropped((dir) => {
       setDragging(false);
-      void run("打开拖入的仓库", async () => {
-        const snap = await api.openRepo(dir);
-        setTab("files");
-        return snap;
-      });
+      // 可能是仓库、仓库的子目录、或者一个普通文件夹 —— 交给 openFolder 判断
+      void openFolder(dir);
     });
     const offFail = onRepoDropFailed((_path, reason) => {
       setDragging(false);
@@ -249,7 +295,7 @@ export default function App() {
       offDrop();
       offFail();
     };
-  }, [run]);
+  }, [openFolder]);
 
   // 拖拽的可视反馈（Wails 负责实际接收，这里只做提示）
   useEffect(() => {
@@ -280,13 +326,34 @@ export default function App() {
     };
   }, []);
 
+  // 询问框要在「欢迎页」和「主界面」两种状态下都能显示。
+  // 之前只写在主界面的 return 里，导致没打开仓库时（也就是最该问的情况）
+  // setPendingFolder 执行了但界面什么都不弹 —— 看起来像"没反应"。
+  const initPrompt = pendingFolder ? (
+    <InitRepoPrompt
+      info={pendingFolder}
+      busy={busy !== null}
+      onCancel={() => setPendingFolder(null)}
+      onConfirm={(branch) => {
+        const dir = pendingFolder.path;
+        setPendingFolder(null);
+        void run("建立仓库", async () => {
+          const snap = await api.initRepoHere(dir, branch);
+          setTab("files");
+          return snap;
+        });
+      }}
+    />
+  ) : null;
+
   // 没有打开任何仓库时，显示启动界面：
   // 新建仓库 / 打开本地仓库 / 从网址下载仓库 三个入口都在那里。
   if (!snapshot) {
     return (
       <div className="app" data-drop-target>
         <TitleBar />
-        <Welcome onOpened={setSnapshot} />
+        <Welcome onOpened={setSnapshot} onOpenFolder={(p) => void openFolder(p)} />
+        {initPrompt}
       </div>
     );
   }
@@ -506,6 +573,8 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {initPrompt}
 
       {showPublish && (
         <PublishDialog

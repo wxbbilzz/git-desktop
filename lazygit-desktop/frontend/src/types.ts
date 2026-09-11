@@ -226,3 +226,12 @@ export interface PublishDefaults {
   remoteName: string;
   repoName: string;
 }
+
+/** 一个文件夹能否直接当仓库用。 */
+export interface FolderInfo {
+  path: string;
+  isRepo: boolean;
+  /** 如果是某个仓库的子目录，这里是仓库根；空串表示往上也没有仓库 */
+  parentRepo: string;
+  fileCount: number;
+}

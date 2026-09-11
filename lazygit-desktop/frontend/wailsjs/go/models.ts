@@ -266,6 +266,24 @@ export namespace engine {
 		    return a;
 		}
 	}
+	export class FolderInfo {
+	    path: string;
+	    isRepo: boolean;
+	    parentRepo: string;
+	    fileCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FolderInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.isRepo = source["isRepo"];
+	        this.parentRepo = source["parentRepo"];
+	        this.fileCount = source["fileCount"];
+	    }
+	}
 	export class RefOption {
 	    value: string;
 	    label: string;

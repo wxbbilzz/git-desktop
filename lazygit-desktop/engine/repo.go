@@ -92,6 +92,95 @@ func (e *Engine) InitRepo(parentDir, name, initialBranch string) (*RepoSnapshot,
 	return e.OpenRepo(dir)
 }
 
+// InitRepoAt 在一个**已存在**的目录里初始化 git 仓库。
+//
+// 和 InitRepo 的区别：InitRepo 是「新建一个名为 name 的子目录」，
+// 而这个是「就在这个目录里 git init」——
+// 用户打开一个不受版本控制的已有文件夹时走这条。
+func (e *Engine) InitRepoAt(dir string, initialBranch string) (*RepoSnapshot, error) {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return nil, fmt.Errorf("目录不能为空")
+	}
+
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(abs)
+	if err != nil || !info.IsDir() {
+		return nil, fmt.Errorf("不是有效目录：%s", abs)
+	}
+
+	// 已经是仓库就别重复 init
+	if _, err := os.Stat(filepath.Join(abs, ".git")); err == nil {
+		return e.OpenRepo(abs)
+	}
+
+	args := []string{"init"}
+	if b := strings.TrimSpace(initialBranch); b != "" {
+		args = append(args, "--initial-branch="+b)
+	}
+	args = append(args, abs)
+
+	if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("git init 失败: %v\n%s", err, strings.TrimSpace(string(out)))
+	}
+
+	return e.OpenRepo(abs)
+}
+
+// FolderInfo 描述一个文件夹能不能直接当仓库用。
+type FolderInfo struct {
+	Path string `json:"path"`
+	// IsRepo 这个目录本身就是仓库根
+	IsRepo bool `json:"isRepo"`
+	// ParentRepo 如果是某个仓库的子目录，这里是那个仓库的根；
+	// 为空表示往上找也没有仓库
+	ParentRepo string `json:"parentRepo"`
+	// FileCount 目录里的文件/子目录数量，用来提示「这里已经有东西了」
+	FileCount int `json:"fileCount"`
+}
+
+// InspectFolder 检查一个文件夹，供界面决定「直接打开 / 打开上级仓库 / 询问是否初始化」。
+func (e *Engine) InspectFolder(path string) (*FolderInfo, error) {
+	abs, err := filepath.Abs(strings.TrimSpace(path))
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(abs)
+	if err != nil || !info.IsDir() {
+		return nil, fmt.Errorf("不是有效目录：%s", abs)
+	}
+
+	out := &FolderInfo{Path: abs}
+
+	if entries, err := os.ReadDir(abs); err == nil {
+		out.FileCount = len(entries)
+	}
+
+	if _, err := os.Stat(filepath.Join(abs, ".git")); err == nil {
+		out.IsRepo = true
+		return out, nil
+	}
+
+	// 往上找：拖进来的可能是某个仓库的子目录
+	dir := abs
+	for {
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			out.ParentRepo = dir
+			return out, nil
+		}
+	}
+
+	return out, nil
+}
+
 // ---------------------------------------------------------------------------
 // 克隆仓库
 // ---------------------------------------------------------------------------

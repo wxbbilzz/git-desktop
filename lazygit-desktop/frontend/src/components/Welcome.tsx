@@ -17,6 +17,8 @@ type Mode = "choose" | "create" | "clone";
 
 interface Props {
   onOpened: (snapshot: RepoSnapshot) => void;
+  /** 由上层统一处理「这个文件夹能不能当仓库」的判断 */
+  onOpenFolder: (path: string) => void;
 }
 
 /** 仅用于界面预览的路径拼接（真实提交时走引擎的 JoinPath）。 */
@@ -26,7 +28,7 @@ function displayJoin(dir: string, name: string): string {
   return dir.endsWith("/") ? dir + name : dir + "/" + name;
 }
 
-export function Welcome({ onOpened }: Props) {
+export function Welcome({ onOpened, onOpenFolder }: Props) {
   const [mode, setMode] = useState<Mode>("choose");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -94,11 +96,11 @@ export function Welcome({ onOpened }: Props) {
     }
   };
 
-  const handleOpenExisting = () =>
-    run("打开仓库", async () => {
-      const snap = await api.chooseAndOpenRepo();
-      return snap;
-    });
+  // 先让用户选目录，剩下的事（是不是仓库 / 要不要初始化）交给上层
+  const handleOpenExisting = async () => {
+    const dir = await api.pickRepo();
+    if (dir) onOpenFolder(dir);
+  };
 
   const pickBaseDir = async (setter: (v: string) => void) => {
     const dir = await api.pickDirectory("选择存放位置");

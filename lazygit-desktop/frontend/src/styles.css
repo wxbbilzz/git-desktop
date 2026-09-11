@@ -2265,3 +2265,29 @@ body {
   background: #e5484d;
   color: #fff;
 }
+
+/* 「要不要初始化仓库」询问框 */
+.init-panel {
+  width: min(560px, 100%);
+  height: auto;
+}
+
+.init-path {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--panel-2);
+  border: 1px solid var(--border-strong);
+  color: var(--accent-2);
+}
+
+.init-path-text {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

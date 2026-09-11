@@ -82,6 +82,14 @@ export function Identity() {
   return window['go']['main']['App']['Identity']();
 }
 
+export function InitRepoHere(arg1, arg2) {
+  return window['go']['main']['App']['InitRepoHere'](arg1, arg2);
+}
+
+export function InspectFolder(arg1) {
+  return window['go']['main']['App']['InspectFolder'](arg1);
+}
+
 export function IsGitRepo(arg1) {
   return window['go']['main']['App']['IsGitRepo'](arg1);
 }
@@ -108,6 +116,10 @@ export function OperationChoices() {
 
 export function Operations() {
   return window['go']['main']['App']['Operations']();
+}
+
+export function PendingStartupFolder() {
+  return window['go']['main']['App']['PendingStartupFolder']();
 }
 
 export function PickDirectory(arg1) {

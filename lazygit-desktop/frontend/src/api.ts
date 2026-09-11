@@ -14,6 +14,7 @@ import type {
   ConflictFile,
   FileContentDTO,
   FilePatch,
+  FolderInfo,
   OperationChoices,
   OperationSummary,
   PublishDefaults,
@@ -94,6 +95,9 @@ interface DesktopBridge {
   StashDrop(index: number): Promise<RepoSnapshot>;
 
   // 完整仓库文件树
+  InspectFolder(path: string): Promise<FolderInfo>;
+  PendingStartupFolder(): Promise<FolderInfo | null>;
+  InitRepoHere(path: string, initialBranch: string): Promise<RepoSnapshot>;
   RepoFiles(): Promise<RepoFileDTO[]>;
   FileContent(path: string): Promise<FileContentDTO>;
 
@@ -556,5 +560,25 @@ export const api = {
 
   async closeWindow(): Promise<void> {
     bridge()?.CloseWindow();
+  },
+
+  // ---- 打开「可能还不是仓库」的文件夹 ----
+
+  async inspectFolder(path: string): Promise<FolderInfo> {
+    const b = bridge();
+    if (!b) return { path, isRepo: true, parentRepo: "", fileCount: 0 };
+    return b.InspectFolder(path);
+  },
+
+  async initRepoHere(path: string, initialBranch: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.InitRepoHere(path, initialBranch);
+  },
+
+  async pendingStartupFolder(): Promise<FolderInfo | null> {
+    const b = bridge();
+    if (!b) return null;
+    return b.PendingStartupFolder();
   },
 };

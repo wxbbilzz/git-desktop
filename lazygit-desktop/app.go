@@ -21,6 +21,8 @@ import (
 type App struct {
 	ctx    context.Context
 	engine *engine.Engine
+	// 启动目录如果不是 git 仓库，记在这里，交给前端问「要不要初始化」
+	startupNotRepo string
 }
 
 func NewApp() *App {
@@ -50,10 +52,13 @@ func (a *App) startup(ctx context.Context) {
 		runtime.EventsEmit(ctx, "repo:dropped", dir)
 	})
 
-	// 尽力打开启动目录。不是 git 仓库也没关系，
-	// 前端会显示「选择仓库」的空状态。
+	// 尽力打开启动目录。
+	// 如果不是 git 仓库，记下来交给前端 —— 前端会问用户
+	// 「要不要在这个文件夹里建一个仓库」，而不是干巴巴地显示欢迎页。
 	if wd, err := os.Getwd(); err == nil {
-		_, _ = a.engine.OpenRepo(wd)
+		if _, err := a.engine.OpenRepo(wd); err != nil {
+			a.startupNotRepo = wd
+		}
 	}
 }
 
@@ -473,4 +478,31 @@ func (a *App) CloseWindow() {
 	if a.ctx != nil {
 		runtime.Quit(a.ctx)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// 打开一个「可能还不是仓库」的文件夹
+// ---------------------------------------------------------------------------
+
+// InspectFolder 检查文件夹状态，供前端决定下一步：
+// 直接打开 / 打开上级仓库 / 询问是否初始化。
+func (a *App) InspectFolder(path string) (*engine.FolderInfo, error) {
+	return a.engine.InspectFolder(path)
+}
+
+// InitRepoHere 在指定目录里 git init 并打开。
+func (a *App) InitRepoHere(path string, initialBranch string) (*engine.RepoSnapshot, error) {
+	return a.engine.InitRepoAt(path, initialBranch)
+}
+
+// PendingStartupFolder 返回「启动目录不是 git 仓库」时的目录信息。
+// 启动目录本来就是仓库时返回 nil。
+//
+// 用途：用户 `cd 我的项目 && bingit` 时，可以直接问他要不要初始化，
+// 不用他再去菜单里点「打开仓库」。
+func (a *App) PendingStartupFolder() (*engine.FolderInfo, error) {
+	if a.startupNotRepo == "" {
+		return nil, nil
+	}
+	return a.engine.InspectFolder(a.startupNotRepo)
 }

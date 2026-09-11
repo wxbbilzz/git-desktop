@@ -42,6 +42,10 @@ export function FilePatchLines(arg1:string,arg2:boolean):Promise<engine.FilePatc
 
 export function Identity():Promise<string|string>;
 
+export function InitRepoHere(arg1:string,arg2:string):Promise<engine.RepoSnapshot>;
+
+export function InspectFolder(arg1:string):Promise<engine.FolderInfo>;
+
 export function IsGitRepo(arg1:string):Promise<boolean>;
 
 export function IsWindowMaximised():Promise<boolean>;
@@ -55,6 +59,8 @@ export function OpenRepo(arg1:string):Promise<engine.RepoSnapshot>;
 export function OperationChoices():Promise<engine.OperationChoices>;
 
 export function Operations():Promise<Array<engine.OperationSummary>>;
+
+export function PendingStartupFolder():Promise<engine.FolderInfo>;
 
 export function PickDirectory(arg1:string):Promise<string>;
 

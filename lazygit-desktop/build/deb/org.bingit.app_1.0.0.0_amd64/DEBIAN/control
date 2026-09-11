@@ -3,7 +3,7 @@ Version: 1.0.0.0
 Section: devel
 Priority: optional
 Architecture: amd64
-Installed-Size: 13312
+Installed-Size: 13324
 Maintainer: 小冰冰 <bingit@example.com>
 Depends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-0, libgtk-3-0
 Description: Bingit - a git client with a friendly interface
