@@ -422,3 +422,8 @@ func (a *App) CreateBranchFrom(name string, start string, checkout bool) (*engin
 func (a *App) DeleteBranch(name string, force bool) (*engine.RepoSnapshot, error) {
 	return a.engine.DeleteBranch(name, force)
 }
+
+// PushSetUpstream 首次推送：把当前分支推上去并设置上游。
+func (a *App) PushSetUpstream(remote string) (*engine.RepoSnapshot, error) {
+	return a.engine.PushSetUpstream(remote)
+}

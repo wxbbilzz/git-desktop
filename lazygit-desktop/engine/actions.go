@@ -8,7 +8,6 @@ import (
 
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
-	"github.com/jesseduffield/lazygit/pkg/gocui"
 )
 
 // 本文件是引擎的“动作层”：UI 发来的每一个意图都在这里落成一次 git 操作，
@@ -262,47 +261,67 @@ func (e *Engine) DeleteBranch(name string, force bool) (*RepoSnapshot, error) {
 // 同步（远端）
 // ---------------------------------------------------------------------------
 
-// syncOp 收敛了引擎里唯一一处对 lazygit TUI 的依赖：长任务需要 gocui.Task。
+// syncOp 把一次远端操作包起来：加锁 → 执行 → 刷新快照。
 //
-// 引擎没有 UI 任务系统，而 gocui.Task 又带未导出方法、外部无法自己实现，
-// 于是这里借 gocui.NewFakeTask() 顶替 —— 它只在 lazygit 内部用于判断
-// “程序是否正忙”，对我们的用途没有副作用。
+// 为什么不用 lazygit 的 SyncCommands？
 //
-// 想彻底去掉这个依赖，只要把 git_commands 中 Push/Fetch/Pull 的
-// task 参数改成一个自定义的窄接口即可（这是抽引擎阶段顺手就能做的清理）。
-func (e *Engine) syncOp(fn func(task gocui.Task) error) (*RepoSnapshot, error) {
+// 它的 Fetch/Pull/Push 都调用了 PromptOnCredentialRequest(task)，那会把命令
+// **放进 PTY 执行**。git 因此认为自己在真终端里，遇到需要账号密码时会弹出
+// 提示并无限等待 —— 在没有终端的桌面应用里就是永久挂起（界面卡在"正在…"
+// 且按钮全部禁用）。
+//
+// 这里用自己的 gitRun：不开 PTY，并显式设 GIT_TERMINAL_PROMPT=0，
+// 让需要凭据的远端立刻失败并给出可读的错误，而不是把界面拖死。
+func (e *Engine) syncOp(args []string, env ...string) (*RepoSnapshot, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	if err := e.requireRepoLocked(); err != nil {
 		return nil, err
 	}
-	if err := fn(gocui.NewFakeTask()); err != nil {
-		return nil, err
+
+	if out, err := e.gitRunWith(append(env, "GIT_TERMINAL_PROMPT=0"), args...); err != nil {
+		msg := firstErrorLine(out)
+		if msg == "" {
+			msg = err.Error()
+		}
+		return nil, fmt.Errorf("%s", msg)
 	}
+
 	return e.snapshotLocked()
 }
 
-// Fetch 拉取远端引用（对应 `git fetch [--all] --no-write-fetch-head`）。
+// Fetch 拉取远端引用（不合并到本地分支）。
 func (e *Engine) Fetch() (*RepoSnapshot, error) {
-	return e.syncOp(func(task gocui.Task) error {
-		return e.git.Sync.Fetch(task)
-	})
+	args := []string{"fetch"}
+	if e.cmn.UserConfig().Git.FetchAll {
+		args = append(args, "--all")
+	}
+	// 不写 FETCH_HEAD，避免和并行的 pull 打架
+	args = append(args, "--no-write-fetch-head")
+	return e.syncOp(args)
 }
 
-// Pull 拉取并合并当前分支（`git pull --no-edit`）。
+// Pull 拉取并合并当前分支。
+//
+// GIT_SEQUENCE_EDITOR=: 用来兜底：万一用户配了 pull.rebase=interactive，
+// 也能跳过交互式编辑。
 func (e *Engine) Pull() (*RepoSnapshot, error) {
-	return e.syncOp(func(task gocui.Task) error {
-		return e.git.Sync.Pull(task, git_commands.PullOptions{})
-	})
+	return e.syncOp([]string{"pull", "--no-edit"}, "GIT_SEQUENCE_EDITOR=:")
 }
 
-// Push 推送当前分支到它的上游（`git push`）。
-// 若分支还没有上游，git 会报错，前端应给出「首次推送」的提示。
+// Push 推送当前分支到它的上游。
 func (e *Engine) Push() (*RepoSnapshot, error) {
-	return e.syncOp(func(task gocui.Task) error {
-		return e.git.Sync.Push(task, git_commands.PushOpts{})
-	})
+	return e.syncOp([]string{"push"})
+}
+
+// PushSetUpstream 首次推送：把当前分支推上去并设置上游。
+func (e *Engine) PushSetUpstream(remote string) (*RepoSnapshot, error) {
+	remote = strings.TrimSpace(remote)
+	if remote == "" {
+		remote = "origin"
+	}
+	return e.syncOp([]string{"push", "--set-upstream", remote, "HEAD"})
 }
 
 // ---------------------------------------------------------------------------

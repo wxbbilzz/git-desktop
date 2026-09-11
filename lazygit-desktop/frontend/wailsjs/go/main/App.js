@@ -114,6 +114,10 @@ export function Push() {
   return window['go']['main']['App']['Push']();
 }
 
+export function PushSetUpstream(arg1) {
+  return window['go']['main']['App']['PushSetUpstream'](arg1);
+}
+
 export function ReadConflictFile(arg1) {
   return window['go']['main']['App']['ReadConflictFile'](arg1);
 }

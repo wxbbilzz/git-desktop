@@ -359,9 +359,18 @@ func urlQueryEscape(s string) string {
 
 // gitRun 执行 git 命令并返回合并输出。调用方需持有 e.mu。
 func (e *Engine) gitRun(args ...string) (string, error) {
+	return e.gitRunWith(nil, args...)
+}
+
+// gitRunWith 同上，但可以附加环境变量。
+//
+// 关键点：不开 PTY，并且默认设 GIT_TERMINAL_PROMPT=0 ——
+// 没有终端的桌面应用绝不能让 git 停下来等输入。
+func (e *Engine) gitRunWith(extraEnv []string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = e.repoPath
-	cmd.Env = append(cmd.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = append(cmd.Environ(), extraEnv...)
+	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

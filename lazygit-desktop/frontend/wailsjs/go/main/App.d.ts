@@ -58,6 +58,8 @@ export function Pull():Promise<engine.RepoSnapshot>;
 
 export function Push():Promise<engine.RepoSnapshot>;
 
+export function PushSetUpstream(arg1:string):Promise<engine.RepoSnapshot>;
+
 export function ReadConflictFile(arg1:string):Promise<engine.ConflictFile>;
 
 export function RepoFiles():Promise<Array<engine.RepoFileDTO>>;
