@@ -246,31 +246,28 @@ export function Sidebar({
           </button>
         </div>
 
-        {tab !== "branches" && (
-          <PillButton
-            size="sm"
-            variant="ghost"
-            icon={viewMode === "tree" ? <IconLayers /> : <IconTree />}
-            title={viewMode === "tree" ? "切换为平铺列表" : "切换为目录树"}
-            onClick={() => setViewMode(viewMode === "tree" ? "flat" : "tree")}
-          />
-        )}
       </div>
 
       <div className="panel-body">
         {tab === "changes" && (
           <>
-            <div style={{ padding: 8 }}>
+            <div className="list-actions">
               <PillButton
                 size="sm"
                 variant="success"
                 icon={<IconPlus />}
                 disabled={busy !== null || changedFiles.length === 0}
                 onClick={onStageAll}
-                style={{ width: "100%" }}
               >
                 全部暂存
               </PillButton>
+              <PillButton
+                size="sm"
+                variant="ghost"
+                icon={viewMode === "tree" ? <IconLayers /> : <IconTree />}
+                title={viewMode === "tree" ? "切换为平铺列表" : "切换为目录树"}
+                onClick={() => setViewMode(viewMode === "tree" ? "flat" : "tree")}
+              />
             </div>
             {viewMode === "tree" ? (
               <FileTree
@@ -312,16 +309,22 @@ export function Sidebar({
 
         {tab === "staged" && (
           <>
-            <div style={{ padding: 8 }}>
+            <div className="list-actions">
               <PillButton
                 size="sm"
                 icon={<IconUndo />}
                 disabled={busy !== null || stagedFiles.length === 0}
                 onClick={onUnstageAll}
-                style={{ width: "100%" }}
               >
                 全部取消暂存
               </PillButton>
+              <PillButton
+                size="sm"
+                variant="ghost"
+                icon={viewMode === "tree" ? <IconLayers /> : <IconTree />}
+                title={viewMode === "tree" ? "切换为平铺列表" : "切换为目录树"}
+                onClick={() => setViewMode(viewMode === "tree" ? "flat" : "tree")}
+              />
             </div>
             {viewMode === "tree" ? (
               <FileTree
@@ -441,13 +444,12 @@ export function Sidebar({
                 </div>
               </div>
             ) : (
-              <div style={{ padding: 8 }}>
+              <div className="list-actions">
                 <PillButton
                   size="sm"
                   variant="success"
                   icon={<IconPlus />}
                   disabled={busy !== null}
-                  style={{ width: "100%" }}
                   onClick={() => {
                     setNewBranchStart("");
                     setNewBranchOpen(true);

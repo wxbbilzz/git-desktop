@@ -98,7 +98,7 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr) 372px;
+  grid-template-columns: 320px minmax(0, 1fr) 380px;
   gap: 12px;
 }
 
@@ -115,9 +115,23 @@ body {
   min-height: 0;
 }
 
-@media (max-width: 1180px) {
+/* 提交面板绝不能压缩：
+   .panel 带 overflow:hidden，一旦被 flex 压小，底部的「提交」按钮
+   会被直接裁掉（历史记录一多就会触发）。所以这里固定不缩，
+   空间不够让下面的历史面板去缩。 */
+.right-col > .panel:first-child {
+  flex: 0 0 auto;
+}
+
+/* 窗口特别矮时，提交面板整体可以滚动，而不是把按钮裁掉 */
+.right-col > .panel:first-child {
+  max-height: 62vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 1240px) {
   .layout {
-    grid-template-columns: 252px minmax(0, 1fr) 320px;
+    grid-template-columns: 268px minmax(0, 1fr) 330px;
   }
 }
 
@@ -1973,4 +1987,158 @@ body {
   display: flex;
   gap: 6px;
   margin-top: 4px;
+}
+
+/* ==========================================================================
+   布局修缮：多个标签 + 多个按钮挤在一起时的处理
+   ========================================================================== */
+
+/* 顶栏：收紧间距，并让仓库路径优先被压缩，别把按钮挤出去 */
+.topbar {
+  gap: 8px;
+  min-width: 0;
+}
+
+.topbar .repo-path {
+  max-width: 180px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.topbar .chip {
+  flex: 0 0 auto;
+}
+
+/* 侧边栏顶栏：标签均分整行宽度，不再和右侧按钮抢空间 */
+.panel-header {
+  gap: 6px;
+  overflow: visible;
+}
+
+.panel-header .tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+}
+
+.panel-header .tab {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 6px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-header .tab .count {
+  margin-left: 3px;
+  opacity: 0.7;
+}
+
+/* 列表上方的操作行：把按钮和视图切换放在一起，用整行宽度 */
+.list-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+}
+
+.list-actions > .pill:first-child {
+  flex: 1 1 auto;
+}
+
+/* ==========================================================================
+   防挤压：头部行放不下时换行，而不是把按钮挤没
+   --------------------------------------------------------------------------
+   .diff-head 最坏情况要放「3 个胶囊 + 4 个按钮 + 文件路径」，
+   窄一点的窗口下会超过可用宽度。加上 flex-wrap 后按钮会掉到第二行，
+   而不是被裁掉看不见。
+   ========================================================================== */
+
+.diff-head {
+  flex-wrap: wrap;
+  row-gap: 8px;
+  gap: 8px;
+}
+
+/* 路径可以被压缩，但不能把别的元素挤出去 */
+.diff-head .diff-path {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.diff-head .chip {
+  flex: 0 0 auto;
+}
+
+/* 通用兜底：所有面板头部也允许换行 */
+.panel-header {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.ops-head {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* 提交面板底部的提示行同理：窄的时候作者信息会占满、把按钮挤走 */
+.form-footer {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* 操作面板的按钮行 */
+.ops-actions,
+.branch-form-actions,
+.form-actions {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ==========================================================================
+   层次修正
+   --------------------------------------------------------------------------
+   之前把面板背景设成 linear-gradient(#1c1f2a → #14161e)，
+   而输入框底色是 #1b1e28 —— 两者几乎同色，导致输入框、按钮边界全糊在一起，
+   看起来像"什么都没有"。
+
+   现在把面板压暗，和输入框/按钮拉开明显层次。
+   ========================================================================== */
+
+.panel {
+  background: linear-gradient(180deg, #171922 0%, #111319 100%);
+}
+
+/* 输入框比面板亮一档，边界要看得清 */
+.field {
+  background: #1e2230;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.field:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* 普通按钮也要能从面板里"浮"出来 */
+.pill {
+  background: #20242f;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.pill.ghost {
+  background: transparent;
+}
+
+/* 提交按钮即使禁用也要看得见（用户得知道"提交按钮在这里"） */
+.pill.primary:disabled {
+  opacity: 0.55;
+}
+
+/* 提交面板内部各块之间加一点分隔，层次更清楚 */
+.commit-panel-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
 }

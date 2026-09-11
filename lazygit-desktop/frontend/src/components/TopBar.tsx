@@ -74,9 +74,12 @@ export function TopBar({
         disabled={disabled}
         title="回到启动页"
       />
-      <PillButton icon={<IconFolder />} onClick={onOpenRepo} disabled={disabled}>
-        打开仓库
-      </PillButton>
+      <PillButton
+        icon={<IconFolder />}
+        onClick={onOpenRepo}
+        disabled={disabled}
+        title="打开本地仓库"
+      />
       <PillButton
         variant="success"
         icon={<IconCommit />}

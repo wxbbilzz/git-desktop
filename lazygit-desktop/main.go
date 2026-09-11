@@ -18,10 +18,10 @@ func main() {
 
 	err := wails.Run(&options.App{
 		Title:     "Lazygit Desktop",
-		Width:     1380,
-		Height:    880,
-		MinWidth:  1040,
-		MinHeight: 640,
+		Width:     1480,
+		Height:    920,
+		MinWidth:  1120,
+		MinHeight: 680,
 		// 深色底，和前端主题一致，避免启动瞬间白屏闪烁。
 		BackgroundColour: &options.RGBA{R: 15, G: 16, B: 22, A: 1},
 		AssetServer: &assetserver.Options{
