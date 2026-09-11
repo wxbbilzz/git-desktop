@@ -1045,7 +1045,6 @@ body {
   justify-content: center;
   padding: 28px;
   background: rgba(6, 7, 11, 0.62);
-  backdrop-filter: blur(3px);
 }
 
 .ops-panel {
@@ -1572,7 +1571,6 @@ body {
 /* 面板：轻微玻璃感 + 顶部高光 */
 .panel {
   background: linear-gradient(180deg, rgba(28, 31, 42, 0.92), rgba(20, 22, 30, 0.92));
-  backdrop-filter: blur(14px) saturate(130%);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.05) inset,
     0 12px 30px rgba(0, 0, 0, 0.28);
@@ -1586,7 +1584,6 @@ body {
 /* 顶栏：更明显的高光与投影 */
 .topbar {
   background: linear-gradient(180deg, rgba(32, 35, 48, 0.95), rgba(22, 24, 32, 0.95));
-  backdrop-filter: blur(16px) saturate(140%);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.06) inset,
     0 10px 26px rgba(0, 0, 0, 0.3);
@@ -1594,23 +1591,10 @@ body {
 
 /* 品牌点：呼吸式发光 + 缓慢色相漂移 */
 .brand-dot {
-  background: conic-gradient(from 0deg, #9a8cff, #3ddc97, #5aa9ff, #9a8cff);
-  animation: brand-spin 6s linear infinite, brand-pulse 2.6s ease-in-out infinite;
-}
-
-@keyframes brand-spin {
-  to {
-    filter: hue-rotate(360deg);
-  }
-}
-
-@keyframes brand-pulse {
-  0%, 100% {
-    box-shadow: 0 0 12px rgba(124, 108, 255, 0.5);
-  }
-  50% {
-    box-shadow: 0 0 22px rgba(124, 108, 255, 0.85);
-  }
+  /* 这里原本有 hue-rotate + box-shadow 两个永久动画，
+     它们会持续重绘并让空闲 CPU 高达 20%+，已移除。
+     想要动感可以换成 transform 动画（走合成器，不重绘）。 */
+  background: linear-gradient(135deg, #9a8cff, #6a58f0);
 }
 
 /* 主按钮：渐变 + 悬停发光 + 轻微上浮 */
@@ -1662,11 +1646,7 @@ body {
 }
 
 /* 文件/提交行悬停时轻微右移，产生「被拾起」的感觉 */
-.row:hover,
-.diff-file:hover,
-.commit:hover {
-  transform: translateX(1px);
-}
+/* hover 位移会让每次悬停都新建合成层，已移除 */
 
 /* 徽标：小圆角 + 更精致 */
 .badge {
@@ -1715,19 +1695,9 @@ body {
 }
 
 /* 载入中的骨架：给空状态一点动感 */
+/* 空状态标题原本有流动微光动画，属于持续重绘，已移除 */
 .empty-title {
-  background: linear-gradient(90deg, var(--text-dim), var(--text), var(--text-dim));
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: text-shimmer 3.2s linear infinite;
-}
-
-@keyframes text-shimmer {
-  to {
-    background-position: -200% 0;
-  }
+  color: var(--text-dim);
 }
 
 /* 主按钮在忙碌时的呼吸感 */
@@ -1816,7 +1786,6 @@ body {
   background:
     radial-gradient(600px 400px at 50% 50%, rgba(124, 108, 255, 0.18), transparent 70%),
     rgba(8, 9, 14, 0.72);
-  backdrop-filter: blur(6px);
   animation: drop-in 0.16s ease-out;
 }
 
@@ -1877,4 +1846,115 @@ body {
 
 .panel-header::-webkit-scrollbar {
   display: none;
+}
+
+/* ==========================================================================
+   性能修正层
+   --------------------------------------------------------------------------
+   上面那些「炫酷」效果里有几样在 Linux 的 WebKitGTK 上非常贵，会让鼠标
+   移动、悬停高亮明显跟不上手。这里把它们换掉，但**保留观感**：
+
+   贵的（已去掉）：
+     · backdrop-filter —— 每帧都要重新采样并模糊下层内容，面积越大越慢
+     · 永久运行的 filter/box-shadow 动画 —— 持续重绘，白烧 CPU
+     · hover 上的 transform / filter —— 每次悬停都要新建图层、重绘
+
+   便宜的（保留）：
+     · 静态渐变、颜色、圆角、描边 —— 只在布局时算一次
+     · 只过渡 background / border-color —— 合成友好
+     · 用 transform 做的位移动画 —— 走合成器，不触发重绘
+   ========================================================================== */
+
+/* 1) 面板改用「接近实色的渐变」代替 backdrop-filter。
+   模糊下层内容每帧都要重新采样，是导致鼠标移动跟不上的首要原因。 */
+.panel {
+  background: linear-gradient(180deg, #1c1f2a 0%, #14161e 100%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.26);
+}
+
+.topbar {
+  background: linear-gradient(180deg, #20232f 0%, #16181f 100%);
+}
+
+.ops-overlay {
+  backdrop-filter: none;
+  background: rgba(6, 7, 11, 0.78);
+}
+
+.drop-overlay {
+  backdrop-filter: none;
+  background: rgba(8, 9, 14, 0.82);
+}
+
+.ops-panel {
+  background: linear-gradient(180deg, #1e212d 0%, #14161e 100%);
+}
+
+/* 2) 永久动画（品牌点自转/呼吸、空状态流光）已移除，见上文各处的说明。 */
+.brand-dot {
+  box-shadow: 0 0 14px rgba(124, 108, 255, 0.65);
+}
+
+/* 3) 去掉 hover 上的 transform / filter */
+.row:hover,
+.diff-file:hover,
+.commit:hover {
+  transform: none;
+}
+
+.commit:hover .commit-graph circle {
+  filter: none;
+}
+
+.pill.primary:hover:not(:disabled) {
+  filter: none;
+  background-position: 100% 0;
+}
+
+.diff-line.picked .diff-text {
+  filter: none;
+}
+
+/* 4) 交互过渡只保留 background / border-color，并且做短 —— 手感更跟手 */
+.row,
+.commit,
+.diff-file,
+.ops-item,
+.choice,
+.tab,
+.ops-cat {
+  transition:
+    background-color 0.07s linear,
+    border-color 0.07s linear,
+    color 0.07s linear;
+}
+
+.pill {
+  transition: background-color 0.07s linear, border-color 0.07s linear;
+  /* 去掉按钮上的 transform 缩放，避免点击时抖动 */
+  transform: none !important;
+}
+
+/* 选中态的左侧发光条保留（静态 box-shadow，不参与过渡） */
+.row.selected,
+.commit.selected,
+.diff-file.active,
+.ops-item.active {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* 输入框聚焦：只留一圈描边，去掉外发光（发光要重绘整块区域） */
+.field:focus {
+  box-shadow: 0 0 0 2px rgba(124, 108, 255, 0.28);
+}
+
+/* 面板悬停不再改变描边（每次悬停都要重绘边框） */
+.panel:hover {
+  border-color: var(--border);
+}
+
+/* diff 里可勾选行的悬停：用背景色而不是 outline（outline 会触发重绘） */
+.diff-line.pickable:hover {
+  outline: none;
+  background-color: rgba(124, 108, 255, 0.1);
 }
