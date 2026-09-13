@@ -743,6 +743,13 @@ body {
   color: var(--red);
 }
 
+/* 失败原因 + 建议是两段话，横排会被 gap 挤成一条长线，改成上下两行 */
+.banner.stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
 .spinner {
   width: 13px;
   height: 13px;

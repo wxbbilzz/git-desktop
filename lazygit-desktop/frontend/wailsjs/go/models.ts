@@ -486,6 +486,7 @@ export namespace engine {
 	    ok: boolean;
 	    error: string;
 	    snapshot?: RepoSnapshot;
+	    suggestion: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PublishResult(source);
@@ -500,6 +501,7 @@ export namespace engine {
 	        this.ok = source["ok"];
 	        this.error = source["error"];
 	        this.snapshot = this.convertValues(source["snapshot"], RepoSnapshot);
+	        this.suggestion = source["suggestion"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

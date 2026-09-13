@@ -29,6 +29,15 @@ const (
 	PlatformGitee  = "gitee"
 )
 
+// platformAPIBase 是各平台 API 的基地址。
+//
+// 抽成变量而不是写死在请求里，是为了测试能把它指向本地测试服务器，
+// 从而端到端验证「API 重试」这条路径（不用真的去建仓库）。
+var platformAPIBase = map[string]string{
+	PlatformGitHub: "https://api.github.com",
+	PlatformGitee:  "https://gitee.com/api/v5",
+}
+
 // PublishRequest 是一次上传请求。
 type PublishRequest struct {
 	Platform string `json:"platform"` // github / gitee
@@ -60,6 +69,11 @@ type PublishResult struct {
 	OK       bool          `json:"ok"`
 	Error    string        `json:"error"`
 	Snapshot *RepoSnapshot `json:"snapshot"`
+	// Suggestion 是失败时的「可能原因 + 怎么办」。
+	// Error 说的是发生了什么（git/平台的原话），Suggestion 说的是接下来做什么。
+	// 只在这类失败确实是网络问题时才填，确定性的失败（重名、token 没权限、
+	// non-fast-forward）留空 —— 那时候报错原文比猜测有用。
+	Suggestion string `json:"suggestion"`
 }
 
 // Publish 把当前仓库上传到托管平台。
@@ -120,11 +134,14 @@ func (e *Engine) Publish(req PublishRequest, onProgress func(step string)) (*Pub
 		return nil, fmt.Errorf("当前处于游离 HEAD 状态，请先切换到一个分支再上传")
 	}
 
+	apiHost, gitHost := platformHosts(platform)
+
 	res := &PublishResult{}
 
 	// ---- 1) 拿到远端仓库的信息 ----
 	var repo *createdRepo
 	var err error
+	apiTries := 0
 	if req.Mode == "existing" {
 		// 推到已有仓库：不调 API，直接从地址里解析出用户名和仓库名
 		onProgress("正在连接到已有仓库")
@@ -135,7 +152,7 @@ func (e *Engine) Publish(req PublishRequest, onProgress func(step string)) (*Pub
 		}
 	} else {
 		onProgress("正在创建远端仓库")
-		repo, err = createRemoteRepo(platform, req)
+		repo, apiTries, err = createRemoteRepo(platform, req, onProgress)
 		if err != nil {
 			// 仓库已存在是常见情况，给出可操作的提示而不是干巴巴的报错
 			if isAlreadyExists(err) {
@@ -144,6 +161,11 @@ func (e *Engine) Publish(req PublishRequest, onProgress func(step string)) (*Pub
 				return res, nil
 			}
 			res.Error = err.Error()
+			// 只有确实是网络问题时才解释原因；
+			// 4xx（token 没权限之类）报错原文已经说清楚了，不必再猜。
+			if httpRetryable(err) {
+				res.Suggestion = suggestForNetworkFailure(apiHost, apiTries)
+			}
 			return res, nil
 		}
 	}
@@ -185,13 +207,47 @@ func (e *Engine) Publish(req PublishRequest, onProgress func(step string)) (*Pub
 	argv := []string{"push", "-u", req.RemoteName, req.Branch + ":" + req.Branch}
 	res.Command = "git " + strings.Join(redact(argv), " ")
 
-	pushOut, pushErr := e.gitRun(argv...)
+	// 推送可以放心重试：万一第一次其实成功了、只是响应丢在回程，
+	// 再推一次只会得到「Everything up-to-date」，不会推重。
+	runner := e.pushRunner
+	if runner == nil {
+		runner = e.gitRun
+	}
+
+	var pushOut string
+	policy := newRetryPolicy(pushAttempts, retryBase)
+	policy.onRetry = func(attempt int, err error) {
+		onProgress(fmt.Sprintf("推送被中断，正在重试（第 %d/%d 次）", attempt, pushAttempts))
+	}
+	pushTries, pushErr := policy.run(
+		// 刚建好的仓库，个别平台存在短暂的「仓库不存在」窗口，这种也值得再试
+		func(err error) bool { return pushRetryable(err, req.Mode == "create") },
+		func() error {
+			out, err := runner(argv...)
+			pushOut = out
+			if err != nil {
+				return &gitAttemptError{output: out, err: err}
+			}
+			return nil
+		},
+	)
+
 	res.Output = strings.TrimSpace(pushOut)
 	if pushErr != nil {
-		res.Error = pushErr.Error()
+		// git 的原文比 "exit status 128" 有用得多
+		if line := strings.TrimSpace(firstErrorLine(res.Output)); line != "" {
+			res.Error = line
+		} else {
+			res.Error = pushErr.Error()
+		}
 		// 推送失败时把远端地址改回干净地址，避免留下带 token 的配置
 		if req.StoreToken {
 			_, _ = e.gitOutput("remote", "set-url", req.RemoteName, repo.cloneURL)
+		}
+		// 只对网络类失败解释原因。non-fast-forward、认证失败这些
+		// git 自己说得比我们清楚，再套一句「链路抖动」只会误导。
+		if pushRetryable(pushErr, req.Mode == "create") {
+			res.Suggestion = suggestForNetworkFailure(gitHost, pushTries)
 		}
 		return res, nil
 	}
@@ -221,8 +277,48 @@ type createdRepo struct {
 	name     string
 }
 
-// createRemoteRepo 调用平台 API 创建仓库。
-func createRemoteRepo(platform string, req PublishRequest) (*createdRepo, error) {
+// createRemoteRepo 调用平台 API 创建仓库，瞬时失败会自动重试。
+//
+// 返回实际尝试次数，失败诊断要用它来告诉用户「已经试过几次了」。
+func createRemoteRepo(platform string, req PublishRequest, onProgress func(string)) (*createdRepo, int, error) {
+	var repo *createdRepo
+	policy := newRetryPolicy(apiAttempts, retryBase)
+	policy.onRetry = func(attempt int, err error) {
+		onProgress(fmt.Sprintf("创建仓库请求被中断，正在重试（第 %d/%d 次）", attempt, apiAttempts))
+	}
+	tries, err := policy.run(httpRetryable, func() error {
+		r, e := createRemoteRepoOnce(platform, req)
+		if e == nil {
+			repo = r
+		}
+		return e
+	})
+	if err != nil {
+		return nil, tries, err
+	}
+	return repo, tries, nil
+}
+
+// platformHosts 返回这次上传要连的两个主机名，供失败诊断时探测。
+// apiHost 走平台 API（创建仓库），gitHost 走 git 传输（推送）。
+func platformHosts(platform string) (apiHost, gitHost string) {
+	if platform == PlatformGitHub {
+		return "api.github.com", "github.com"
+	}
+	return "gitee.com", "gitee.com"
+}
+
+// createRemoteRepoOnce 是单次尝试：调一次平台 API 建仓库。
+//
+// 失败时返回带类型的错误，方便上层判断该不该重试：
+//   - 没拿到响应（DNS/连接/TLS/超时）→ transportError，可重试
+//   - 拿到 5xx / 429 响应 → apiAttemptError，可重试
+//   - 4xx（token 没权限、仓库重名）→ apiAttemptError，不重试
+//
+// 重试一个 POST 是安全的：万一第一次其实建成功了只是响应丢了，
+// 第二次会得到「已存在」，上层正好把用户引到「上传到已有仓库」，
+// 不会出现两个仓库，也不会把代码灌进别人的仓库。
+func createRemoteRepoOnce(platform string, req PublishRequest) (*createdRepo, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 
 	if platform == PlatformGitHub {
@@ -232,7 +328,7 @@ func createRemoteRepo(platform string, req PublishRequest) (*createdRepo, error)
 			"private":     req.Private,
 			"auto_init":   false, // 不要帮我们建 README，否则推送会冲突
 		})
-		httpReq, err := http.NewRequest("POST", "https://api.github.com/user/repos", bytes.NewReader(body))
+		httpReq, err := http.NewRequest("POST", platformAPIBase[PlatformGitHub]+"/user/repos", bytes.NewReader(body))
 		if err != nil {
 			return nil, err
 		}
@@ -243,13 +339,16 @@ func createRemoteRepo(platform string, req PublishRequest) (*createdRepo, error)
 
 		resp, err := client.Do(httpReq)
 		if err != nil {
-			return nil, fmt.Errorf("连接 GitHub 失败（这台机器可能访问不了 github.com）: %w", err)
+			return nil, &transportError{err: fmt.Errorf("连接 GitHub 失败: %w", err)}
 		}
 		defer resp.Body.Close()
 		raw, _ := io.ReadAll(resp.Body)
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return nil, fmt.Errorf("GitHub 创建仓库失败（%d）：%s", resp.StatusCode, apiError(raw))
+			return nil, &apiAttemptError{
+				status: resp.StatusCode,
+				msg:    fmt.Sprintf("GitHub 创建仓库失败（%d）：%s", resp.StatusCode, apiError(raw)),
+			}
 		}
 
 		var out struct {
@@ -281,7 +380,7 @@ func createRemoteRepo(platform string, req PublishRequest) (*createdRepo, error)
 	}
 	httpReq, err := http.NewRequest(
 		"POST",
-		"https://gitee.com/api/v5/user/repos",
+		platformAPIBase[PlatformGitee]+"/user/repos",
 		strings.NewReader(strings.Join(vals, "&")),
 	)
 	if err != nil {
@@ -291,13 +390,16 @@ func createRemoteRepo(platform string, req PublishRequest) (*createdRepo, error)
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("连接 Gitee 失败: %w", err)
+		return nil, &transportError{err: fmt.Errorf("连接 Gitee 失败: %w", err)}
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("Gitee 创建仓库失败（%d）：%s", resp.StatusCode, apiError(raw))
+		return nil, &apiAttemptError{
+			status: resp.StatusCode,
+			msg:    fmt.Sprintf("Gitee 创建仓库失败（%d）：%s", resp.StatusCode, apiError(raw)),
+		}
 	}
 
 	var out struct {

@@ -441,6 +441,7 @@ export const api = {
         output: "浏览器预览模式：这里不会真正上传。",
         ok: true,
         error: "",
+        suggestion: "",
         snapshot: null,
       };
     }

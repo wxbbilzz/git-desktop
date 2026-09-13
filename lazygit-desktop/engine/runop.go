@@ -101,12 +101,23 @@ func (e *Engine) runGitArgv(opID string, argv []string) (*RunResult, error) {
 // firstErrorLine 从 git 输出里挑一行最有信息量的作为错误摘要。
 func firstErrorLine(text string) string {
 	lines := strings.Split(text, "\n")
+
+	// 先找被拒绝的引用那一行，例如：
+	//	! [被拒绝]  main -> main (fetch first)
+	// 它说清了「哪个分支、为什么被拒」；紧跟其后的
+	// "error: 无法推送一些引用" 只是套话，拿它当摘要把原因丢了。
+	for _, l := range lines {
+		if l = strings.TrimSpace(l); strings.HasPrefix(l, "! [") {
+			return l
+		}
+	}
+
 	for _, l := range lines {
 		l = strings.TrimSpace(l)
 		if l == "" {
 			continue
 		}
-		// 优先返回带 fatal/error/hint 的行
+		// 其次返回带 fatal/error 的行
 		if strings.HasPrefix(l, "fatal:") || strings.HasPrefix(l, "error:") {
 			return l
 		}

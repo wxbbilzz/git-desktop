@@ -147,6 +147,7 @@ export function PublishDialog({ snapshot, onClose, onPublished }: Props) {
         output: "",
         ok: false,
         error: e instanceof Error ? e.message : String(e),
+        suggestion: "",
         snapshot: null,
       });
     } finally {
@@ -341,7 +342,12 @@ export function PublishDialog({ snapshot, onClose, onPublished }: Props) {
           )}
 
           {result && (
-            <div className={"banner" + (result.ok ? "" : " error")} style={{ marginTop: 8 }}>
+            <div
+              className={
+                "banner" + (result.ok ? "" : " error") + (result.suggestion ? " stack" : "")
+              }
+              style={{ marginTop: 8 }}
+            >
               {result.ok ? (
                 <>
                   <IconCheck />
@@ -351,7 +357,10 @@ export function PublishDialog({ snapshot, onClose, onPublished }: Props) {
                   </a>
                 </>
               ) : (
-                <>上传失败：{result.error}</>
+                <>
+                  <span>上传失败：{result.error}</span>
+                  {result.suggestion && <span>{result.suggestion}</span>}
+                </>
               )}
             </div>
           )}

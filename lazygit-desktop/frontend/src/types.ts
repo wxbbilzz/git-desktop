@@ -132,6 +132,9 @@ export interface PublishResult {
   output: string;
   ok: boolean;
   error: string;
+  /** 失败时的「可能原因 + 怎么办」。确定性的失败（仓库重名、token 没权限、
+   *  non-fast-forward）后端不会给建议，这时是空串。 */
+  suggestion: string;
   snapshot: RepoSnapshot | null;
 }
 

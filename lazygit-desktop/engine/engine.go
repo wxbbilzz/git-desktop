@@ -49,6 +49,11 @@ type Engine struct {
 	mainBranches *git_commands.MainBranches
 
 	repoPath string
+
+	// pushRunner 是推送用的执行器，生产环境下始终是 e.gitRun。
+	// 抽成字段是为了在测试里注入「前几次失败、然后成功」的瞬时故障，
+	// 用来验证重试确实生效。
+	pushRunner func(args ...string) (string, error)
 }
 
 // New 构造引擎并加载一次用户配置。此时还没有打开任何仓库。
