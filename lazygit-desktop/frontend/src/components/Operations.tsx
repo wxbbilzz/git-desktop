@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import { PillButton } from "./PillButton";
 import { IconCheck, IconRefresh, IconTrash } from "./icons";
+import type { ConfirmSpec } from "./ConfirmDialog";
 
 // 「Git 操作」面板：把 git 的命令目录渲染成可搜索、可填表、可执行的界面。
 //
@@ -18,6 +19,26 @@ import { IconCheck, IconRefresh, IconTrash } from "./icons";
 interface Props {
   onClose: () => void;
   onSnapshot: (r: RunResult) => void;
+  /** 危险操作走外面那套自绘确认框（能顺便显示将执行的命令） */
+  onConfirm?: (spec: ConfirmSpec) => void;
+}
+
+/** 把「目录里的操作 + 当前表单值」拼成一行可读的 git 命令，供确认框展示。 */
+function previewCommand(op: OperationSummary, args: Record<string, string>): string {
+  const parts = ["git", ...op.base];
+  for (const p of op.params) {
+    const v = (args[p.name] ?? "").trim();
+    const isDefault = v === "" || v === p.default;
+    if (p.kind === "bool") {
+      if (v === "true") parts.push(p.flag);
+      continue;
+    }
+    if (isDefault && p.kind !== "string" && p.kind !== "text") continue;
+    if (isDefault) continue;
+    if (p.flag) parts.push(p.flag);
+    parts.push(/\s/.test(v) ? JSON.stringify(v) : v);
+  }
+  return parts.join(" ");
 }
 
 // 伪操作：原始命令，作为目录覆盖不到时的兜底
@@ -43,6 +64,7 @@ const RAW: OperationSummary = {
   ],
   dangerous: false,
   readOnly: false,
+  base: [],
 };
 
 const EMPTY_CHOICES: OperationChoices = {
@@ -55,7 +77,7 @@ const EMPTY_CHOICES: OperationChoices = {
   stashes: [],
 };
 
-export function Operations({ onClose, onSnapshot }: Props) {
+export function Operations({ onClose, onSnapshot, onConfirm }: Props) {
   const [ops, setOps] = useState<OperationSummary[]>([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("全部");
@@ -115,13 +137,29 @@ export function Operations({ onClose, onSnapshot }: Props) {
 
   const run = async () => {
     if (!selected) return;
-    if (selected.dangerous) {
-      const ok = window.confirm(
-        `「${selected.name}」是一个不可逆操作，确定执行吗？\n\n${selected.description}`,
-      );
-      if (!ok) return;
-    }
 
+    // 危险操作交给外面那套自绘确认框，不要用 window.confirm：
+    // 系统弹窗和整套圆角面板的设计语言不搭，而且它没法显示「即将执行的命令」。
+    if (selected.dangerous && onConfirm) {
+      const spec = selected;
+      onConfirm({
+        title: "执行危险操作",
+        body: `「${spec.name}」会改动仓库状态，确定执行吗？`,
+        command: previewCommand(spec, args),
+        note: spec.description,
+        confirmLabel: "执行",
+        danger: true,
+        onConfirm: () => {
+          void actuallyRun();
+        },
+      });
+      return;
+    }
+    await actuallyRun();
+  };
+
+  const actuallyRun = async () => {
+    if (!selected) return;
     setRunning(true);
     setResult(null);
     try {

@@ -159,6 +159,8 @@ export interface OperationSummary {
   params: Param[];
   dangerous: boolean;
   readOnly: boolean;
+  /** 基础命令参数（不含用户填的），用来拼出「即将执行的命令」 */
+  base: string[];
 }
 
 /** 一次操作的执行结果。 */

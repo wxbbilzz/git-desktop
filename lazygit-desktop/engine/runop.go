@@ -141,6 +141,9 @@ type OperationSummary struct {
 	Params      []Param `json:"params"`
 	Dangerous   bool    `json:"dangerous"`
 	ReadOnly    bool    `json:"readOnly"`
+	// Base 是这条操作的基础命令参数（不含用户填的那些），
+	// 界面用它拼出「即将执行的命令」显示在确认框里。
+	Base []string `json:"base"`
 }
 
 // Operations 返回全部操作，供前端渲染操作面板。
@@ -152,6 +155,10 @@ func (e *Engine) Operations() []OperationSummary {
 		if params == nil {
 			params = []Param{}
 		}
+		base := op.Base
+		if base == nil {
+			base = []string{}
+		}
 		out = append(out, OperationSummary{
 			ID:          op.ID,
 			Category:    op.Category,
@@ -160,6 +167,7 @@ func (e *Engine) Operations() []OperationSummary {
 			Params:      params,
 			Dangerous:   op.Dangerous,
 			ReadOnly:    op.ReadOnly,
+			Base:        base,
 		})
 	}
 	return out

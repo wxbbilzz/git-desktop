@@ -400,6 +400,7 @@ export namespace engine {
 	    params: Param[];
 	    dangerous: boolean;
 	    readOnly: boolean;
+	    base: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new OperationSummary(source);
@@ -414,6 +415,7 @@ export namespace engine {
 	        this.params = this.convertValues(source["params"], Param);
 	        this.dangerous = source["dangerous"];
 	        this.readOnly = source["readOnly"];
+	        this.base = source["base"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

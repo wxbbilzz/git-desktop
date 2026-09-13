@@ -653,14 +653,23 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
 
-      // 命令面板：任何地方都能唤起，包括正在打字时
+      // 命令面板：任何地方都能唤起，包括正在输入框里打字时。
+      //
+      // 但不能叠在别的浮层上 —— 之前这里写在「有浮层就返回」的守卫之前，
+      // 于是在确认框开着的时候按 Ctrl+K，会又叠出一个命令面板（两层浮层）。
+      // 现在的规则是：面板已开 -> 关掉；别的浮层开着 -> 不响应；否则打开。
       if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
+        if (paletteOpen) {
+          setPaletteOpen(false);
+          return;
+        }
+        if (confirmSpec || menuSpec || showPublish || showOps) return;
         setPaletteOpen(true);
         return;
       }
 
-      // 有浮层开着的时候，剩下的事交给浮层自己处理
+      // 其余浮层打开时，按键交给浮层自己处理
       if (paletteOpen || confirmSpec || menuSpec || showPublish || showOps) return;
       if (isTyping()) return;
 
@@ -1226,6 +1235,7 @@ export default function App() {
             // 操作改变了仓库状态，用引擎回传的新快照刷新界面
             if (r.snapshot) setSnapshot(r.snapshot);
           }}
+          onConfirm={askConfirm}
         />
       )}
     </div>

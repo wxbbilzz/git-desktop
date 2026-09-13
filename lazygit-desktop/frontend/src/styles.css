@@ -2586,8 +2586,13 @@ body {
 
 /* --------------------------------------------------------------- 确认框 */
 
+/* 注意：.ops-panel 定的是 height: min(760px, 100%)（操作面板要占满、内部各列自己滚）。
+   确认框只有几行字，如果把这个固定高度继承下来，会变成一个 70% 空白的巨型面板，
+   确定按钮离正文几百像素远。所以这里显式改回「按内容撑开」。 */
 .confirm-panel {
   width: min(520px, 92vw);
+  height: auto;
+  max-height: min(560px, 92vh);
 }
 
 .confirm-body {
@@ -2595,6 +2600,7 @@ body {
   flex-direction: column;
   gap: 10px;
   padding: 14px;
+  overflow-y: auto;
 }
 
 .confirm-text {
@@ -2639,8 +2645,11 @@ body {
 
 /* --------------------------------------------------------------- 回收站 */
 
+/* 同理：列表短的时候不该撑成一个空面板 */
 .trash-panel {
   width: min(620px, 94vw);
+  height: auto;
+  max-height: min(600px, 90vh);
 }
 
 .trash-body {
@@ -2649,6 +2658,9 @@ body {
   gap: 8px;
   padding: 10px 12px 14px;
   overflow-y: auto;
+  /* min-height:0 必须写：否则 flex 子项不会缩到内容以下，列表一长就撑破面板 */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* --------------------------------------------------------------- 提交面板 */
