@@ -1,7 +1,9 @@
 import type { RepoSnapshot } from "../types";
 import { PillButton } from "./PillButton";
 import {
+  IconAlert,
   IconBranch,
+  IconCheck,
   IconCommit,
   IconFetch,
   IconFolder,
@@ -9,6 +11,9 @@ import {
   IconPull,
   IconPush,
   IconRefresh,
+  IconSearch,
+  IconTrash,
+  IconUndo,
   IconUpload,
   IconVolumeOn,
   IconVolumeOff,
@@ -27,6 +32,14 @@ interface Props {
   onPublish: () => void;
   soundOn: boolean;
   onToggleSound: () => void;
+  // 撤销上一步 / 回收站 / 命令面板
+  onUndo: () => void;
+  onShowTrash: () => void;
+  trashCount: number;
+  onPalette: () => void;
+  // 处于变基 / 合并等被中断的状态时，这两个按钮才有意义
+  onContinue: () => void;
+  onAbort: () => void;
 }
 
 export function TopBar({
@@ -42,8 +55,15 @@ export function TopBar({
   onPublish,
   soundOn,
   onToggleSound,
+  onUndo,
+  onShowTrash,
+  trashCount,
+  onPalette,
+  onContinue,
+  onAbort,
 }: Props) {
   const disabled = busy !== null;
+  const conflicted = snapshot.state !== "";
 
   return (
     <header className="topbar">
@@ -66,7 +86,56 @@ export function TopBar({
 
       {snapshot.state && <span className="chip warn">{snapshot.state}</span>}
 
+      {/* 卡在变基 / 合并冲突里的时候，最要紧的就是「继续」和「中止」这两个出口，
+          所以把它们放在顶栏最显眼的位置，而不是藏在命令目录里 */}
+      {conflicted && (
+        <>
+          <PillButton
+            variant="success"
+            icon={<IconCheck />}
+            onClick={onContinue}
+            disabled={disabled}
+            title="解决冲突并暂存后，继续被中断的操作"
+          >
+            继续
+          </PillButton>
+          <PillButton
+            variant="danger"
+            icon={<IconAlert />}
+            onClick={onAbort}
+            disabled={disabled}
+            title="放弃这次操作，回到它开始之前的状态"
+          >
+            中止
+          </PillButton>
+        </>
+      )}
+
       <span className="spacer" />
+
+      <PillButton
+        icon={<IconSearch />}
+        onClick={onPalette}
+        disabled={disabled}
+        title="命令面板（Ctrl/⌘ + K）"
+      />
+
+      <PillButton
+        icon={<IconUndo />}
+        onClick={onUndo}
+        disabled={disabled || !snapshot.canUndo}
+        title={snapshot.canUndo ? snapshot.undoHint : "没有可撤销的操作"}
+      />
+
+      {trashCount > 0 && (
+        <PillButton
+          icon={<IconTrash />}
+          onClick={onShowTrash}
+          title={`回收站里有 ${trashCount} 个丢弃过的文件`}
+        >
+          {trashCount}
+        </PillButton>
+      )}
 
       <PillButton
         icon={<IconHome />}
@@ -85,7 +154,7 @@ export function TopBar({
         icon={<IconCommit />}
         onClick={onOperations}
         disabled={disabled}
-        title="打开 git 操作面板"
+        title="打开 git 操作面板（全部命令）"
       >
         Git 操作
       </PillButton>

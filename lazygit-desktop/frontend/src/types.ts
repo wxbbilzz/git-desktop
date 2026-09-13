@@ -45,6 +45,50 @@ export interface BranchDTO {
   subject: string;
 }
 
+/** 一个标签。 */
+export interface TagDTO {
+  name: string;
+  hash: string;
+  shortHash: string;
+  subject: string;
+  when: string;
+  /** 附注标签（git tag -a）为真，轻量标签为假 */
+  isAnnotated: boolean;
+}
+
+/** 一个远端。url 已经剥掉凭据，可以安全显示。 */
+export interface RemoteDTO {
+  name: string;
+  url: string;
+  pushUrl: string;
+}
+
+/** 一个远端分支（origin/main 这种）。 */
+export interface RemoteBranchDTO {
+  name: string;
+  short: string;
+  remote: string;
+  hash: string;
+  shortHash: string;
+  subject: string;
+  when: string;
+  /** 是否就是当前分支跟踪的那个远端分支 */
+  isCurrentUpstream: boolean;
+  /** 本地是否已经有同名分支 */
+  hasLocal: boolean;
+}
+
+/** 「回收站」里的一条丢弃记录（丢弃过的文件内容）。 */
+export interface DiscardRecord {
+  id: string;
+  path: string;
+  blobSha: string;
+  size: number;
+  when: string;
+  /** 文件太大没备份，只能看到记录、恢复不了 */
+  truncated: boolean;
+}
+
 export interface RepoSnapshot {
   repoPath: string;
   repoName: string;
@@ -57,9 +101,23 @@ export interface RepoSnapshot {
   files: FileDTO[];
   commits: CommitDTO[];
   branches: BranchDTO[];
+  tags: TagDTO[];
+  remotes: RemoteDTO[];
+  remoteBranches: RemoteBranchDTO[];
+  /** 是否可以撤销上一步 */
+  canUndo: boolean;
+  /** 撤销会撤掉什么，例如：撤销「提交: 修复上传」 */
+  undoHint: string;
 }
 
-export type SidebarTab = "changes" | "staged" | "branches" | "files";
+export type SidebarTab =
+  | "changes"
+  | "staged"
+  | "branches"
+  | "tags"
+  | "remotes"
+  | "stashes"
+  | "files";
 
 export interface Selection {
   // 选中一个文件时，需要同时知道它在工作区还是暂存区，因为两者 diff 不同

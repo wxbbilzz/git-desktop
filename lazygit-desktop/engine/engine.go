@@ -54,6 +54,16 @@ type Engine struct {
 	// 抽成字段是为了在测试里注入「前几次失败、然后成功」的瞬时故障，
 	// 用来验证重试确实生效。
 	pushRunner func(args ...string) (string, error)
+
+	// onRepoChange 在仓库被外部改动时被调用（由 app 层转成前端事件）。
+	// 由 SetRepoChangeHandler 设置；没设置就不监听。
+	onRepoChange func()
+	// watcher 是当前仓库的文件监听器，切换仓库时会被替换
+	watcher *repoWatcher
+
+	// 丢弃文件的回收站（见 restore.go），只存在内存里
+	discards   []DiscardRecord
+	discardSeq int
 }
 
 // New 构造引擎并加载一次用户配置。此时还没有打开任何仓库。
@@ -171,7 +181,38 @@ func (e *Engine) openRepoLocked(path string) (*RepoSnapshot, error) {
 	e.git = git
 	e.repoPath = repoPaths.WorktreePath()
 
+	// 仓库换了就重新挂监听（旧的要先摘掉，否则会同时监听两个目录）
+	e.restartWatcherLocked(e.repoPath)
+
 	return e.snapshotLocked()
+}
+
+// SetRepoChangeHandler 注册「仓库有变化」的回调。
+//
+// app 层用它把变化转成前端事件；引擎本身不关心事件怎么送达。
+// 必须在 OpenRepo 之前设置才会生效 —— 启动时先注册、再打开仓库是固定的顺序。
+func (e *Engine) SetRepoChangeHandler(fn func()) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onRepoChange = fn
+}
+
+// restartWatcherLocked 换掉当前的文件监听器。调用方需持有 e.mu。
+func (e *Engine) restartWatcherLocked(repoPath string) {
+	if e.watcher != nil {
+		e.watcher.Stop()
+		e.watcher = nil
+	}
+	if e.onRepoChange == nil || repoPath == "" {
+		return
+	}
+	w, err := startRepoWatcher(repoPath, e.onRepoChange)
+	if err != nil {
+		// 监听不上不影响使用，只是没有自动刷新
+		e.log.Warnf("无法监听仓库变化，自动刷新已关闭: %v", err)
+		return
+	}
+	e.watcher = w
 }
 
 // Snapshot 读取当前仓库的完整状态快照。
@@ -220,8 +261,28 @@ func (e *Engine) snapshotLocked() (*RepoSnapshot, error) {
 
 	snap.Commits = e.loadCommitsLocked()
 	snap.Branches = e.loadBranchesLocked()
+	snap.Tags = e.loadTagsLocked()
+	snap.Remotes = e.loadRemotesLocked()
+	snap.RemoteBranches = e.loadRemoteBranchesLocked()
+	snap.CanUndo, snap.UndoHint = e.undoInfoLocked()
 
 	return snap, nil
+}
+
+// undoInfoLocked 判断「撤销上一步」当前是否可用，以及撤销会撤掉什么。
+//
+// 判断依据是 reflog：它记录了这个仓库上每一次 HEAD 的移动。
+// 只有两条以上记录、且不处于变基/合并中间状态时，撤销才有意义。
+func (e *Engine) undoInfoLocked() (bool, string) {
+	state := e.git.Status.WorkingTreeState()
+	if state.Rebasing || state.Merging || state.CherryPicking || state.Reverting {
+		return false, ""
+	}
+	entries, err := e.reflogLocked(2)
+	if err != nil || len(entries) < 2 {
+		return false, ""
+	}
+	return true, "撤销「" + entries[0].Subject + "」"
 }
 
 // loadCommitsLocked 读取提交历史。
@@ -270,11 +331,15 @@ func (e *Engine) loadBranchesLocked() []BranchDTO {
 	return result
 }
 
-// Close 释放资源。当前实现没有需要显式关闭的句柄，保留这个方法是给
-// 后续接入文件监听 / 后台自动 fetch 留的扩展点。
+// Close 释放资源：停掉文件监听并断开当前仓库。
 func (e *Engine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	if e.watcher != nil {
+		e.watcher.Stop()
+		e.watcher = nil
+	}
 	e.git = nil
 	e.os = nil
 	return nil

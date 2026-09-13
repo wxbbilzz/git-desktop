@@ -12,6 +12,7 @@ import type {
   CommitFileDTO,
   ConflictChoice,
   ConflictFile,
+  DiscardRecord,
   FileContentDTO,
   FilePatch,
   FolderInfo,
@@ -64,6 +65,7 @@ interface DesktopBridge {
   CreateBranch(name: string): Promise<RepoSnapshot>;
   CreateBranchFrom(name: string, start: string, checkout: boolean): Promise<RepoSnapshot>;
   DeleteBranch(name: string, force: boolean): Promise<RepoSnapshot>;
+  RenameBranch(oldName: string, newName: string): Promise<RepoSnapshot>;
   Fetch(): Promise<RepoSnapshot>;
   Pull(): Promise<RepoSnapshot>;
   Push(): Promise<RepoSnapshot>;
@@ -93,6 +95,33 @@ interface DesktopBridge {
   StashPop(index: number): Promise<RepoSnapshot>;
   StashApply(index: number): Promise<RepoSnapshot>;
   StashDrop(index: number): Promise<RepoSnapshot>;
+
+  // ---- 高频操作：从「Git 操作」目录里提出来的一等方法 ----
+  MergeBranch(name: string, noFF: boolean, squash: boolean): Promise<RepoSnapshot>;
+  RebaseOnto(onto: string): Promise<RepoSnapshot>;
+  CherryPick(hash: string): Promise<RepoSnapshot>;
+  RevertCommit(hash: string): Promise<RepoSnapshot>;
+  ResetTo(commit: string, mode: string): Promise<RepoSnapshot>;
+  AmendCommit(summary: string, description: string): Promise<RepoSnapshot>;
+  ContinueOperation(): Promise<RepoSnapshot>;
+  AbortOperation(): Promise<RepoSnapshot>;
+  UndoLast(): Promise<RepoSnapshot>;
+
+  // 标签
+  CreateTag(name: string, ref: string, message: string): Promise<RepoSnapshot>;
+  DeleteTag(name: string): Promise<RepoSnapshot>;
+  PushTag(name: string, remote: string): Promise<RepoSnapshot>;
+  PushAllTags(remote: string): Promise<RepoSnapshot>;
+
+  // 远端
+  AddRemote(name: string, url: string): Promise<RepoSnapshot>;
+  RemoveRemote(name: string): Promise<RepoSnapshot>;
+  SetRemoteURL(name: string, url: string): Promise<RepoSnapshot>;
+  CheckoutRemoteBranch(remoteBranch: string, local: string): Promise<RepoSnapshot>;
+
+  // 丢弃文件的回收站
+  DiscardedFiles(): Promise<DiscardRecord[]>;
+  RestoreDiscarded(id: string): Promise<RepoSnapshot>;
 
   // 完整仓库文件树
   InspectFolder(path: string): Promise<FolderInfo>;
@@ -168,6 +197,16 @@ export function onPublishProgress(cb: (step: string) => void): () => void {
   const rt = typeof window !== "undefined" ? window.runtime : undefined;
   if (!rt?.EventsOn) return () => {};
   return rt.EventsOn("publish:progress", cb as (...args: any[]) => void);
+}
+
+/** 订阅「仓库被外部改动」事件；返回取消订阅的函数。
+ *
+ * 在编辑器里改文件、在终端里跑 git 命令都会触发它，
+ * 界面收到后重新拉一次快照 —— 这就是自动刷新。 */
+export function onRepoChanged(cb: () => void): () => void {
+  const rt = typeof window !== "undefined" ? window.runtime : undefined;
+  if (!rt?.EventsOn) return () => {};
+  return rt.EventsOn("repo:changed", cb as (...args: any[]) => void);
 }
 
 /** 订阅克隆进度事件；返回取消订阅的函数。 */
@@ -337,6 +376,12 @@ export const api = {
     const b = bridge();
     if (!b) return mockSnapshot();
     return b.DeleteBranch(name, force);
+  },
+
+  async renameBranch(oldName: string, newName: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.RenameBranch(oldName, newName);
   },
 
   async fetch(): Promise<RepoSnapshot> {
@@ -527,6 +572,138 @@ export const api = {
     const b = bridge();
     if (!b) return mockSnapshot();
     return b.StashDrop(index);
+  },
+
+  // ---- 高频操作 ----
+  //
+  // 这些都返回新快照，前端直接替换本地状态即可。浏览器预览模式下
+  // 统一返回演示数据，让界面还能点得动。
+
+  async mergeBranch(
+    name: string,
+    noFF: boolean,
+    squash: boolean,
+  ): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.MergeBranch(name, noFF, squash);
+  },
+
+  async rebaseOnto(onto: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.RebaseOnto(onto);
+  },
+
+  async cherryPick(hash: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.CherryPick(hash);
+  },
+
+  async revertCommit(hash: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.RevertCommit(hash);
+  },
+
+  async resetTo(commit: string, mode: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.ResetTo(commit, mode);
+  },
+
+  async amendCommit(summary: string, description: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.AmendCommit(summary, description);
+  },
+
+  async continueOperation(): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.ContinueOperation();
+  },
+
+  async abortOperation(): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.AbortOperation();
+  },
+
+  async undoLast(): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.UndoLast();
+  },
+
+  async createTag(
+    name: string,
+    ref: string,
+    message: string,
+  ): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.CreateTag(name, ref, message);
+  },
+
+  async deleteTag(name: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.DeleteTag(name);
+  },
+
+  async pushTag(name: string, remote: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.PushTag(name, remote);
+  },
+
+  async pushAllTags(remote: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.PushAllTags(remote);
+  },
+
+  async addRemote(name: string, url: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.AddRemote(name, url);
+  },
+
+  async removeRemote(name: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.RemoveRemote(name);
+  },
+
+  async setRemoteUrl(name: string, url: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.SetRemoteURL(name, url);
+  },
+
+  async checkoutRemoteBranch(
+    remoteBranch: string,
+    local: string,
+  ): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.CheckoutRemoteBranch(remoteBranch, local);
+  },
+
+  // ---- 回收站 ----
+
+  async discardedFiles(): Promise<DiscardRecord[]> {
+    const b = bridge();
+    if (!b) return [];
+    return b.DiscardedFiles();
+  },
+
+  async restoreDiscarded(id: string): Promise<RepoSnapshot> {
+    const b = bridge();
+    if (!b) return mockSnapshot();
+    return b.RestoreDiscarded(id);
   },
 
   async repoFiles(): Promise<RepoFileDTO[]> {

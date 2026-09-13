@@ -150,6 +150,28 @@ export namespace engine {
 		    return a;
 		}
 	}
+	export class DiscardRecord {
+	    id: string;
+	    path: string;
+	    blobSha: string;
+	    size: number;
+	    when: string;
+	    truncated: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DiscardRecord(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.path = source["path"];
+	        this.blobSha = source["blobSha"];
+	        this.size = source["size"];
+	        this.when = source["when"];
+	        this.truncated = source["truncated"];
+	    }
+	}
 	export class FileContentDTO {
 	    path: string;
 	    content: string;
@@ -430,6 +452,72 @@ export namespace engine {
 	        this.repoName = source["repoName"];
 	    }
 	}
+	export class RemoteBranchDTO {
+	    name: string;
+	    short: string;
+	    remote: string;
+	    hash: string;
+	    shortHash: string;
+	    subject: string;
+	    when: string;
+	    isCurrentUpstream: boolean;
+	    hasLocal: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new RemoteBranchDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.short = source["short"];
+	        this.remote = source["remote"];
+	        this.hash = source["hash"];
+	        this.shortHash = source["shortHash"];
+	        this.subject = source["subject"];
+	        this.when = source["when"];
+	        this.isCurrentUpstream = source["isCurrentUpstream"];
+	        this.hasLocal = source["hasLocal"];
+	    }
+	}
+	export class RemoteDTO {
+	    name: string;
+	    url: string;
+	    pushUrl: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RemoteDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.url = source["url"];
+	        this.pushUrl = source["pushUrl"];
+	    }
+	}
+	export class TagDTO {
+	    name: string;
+	    hash: string;
+	    shortHash: string;
+	    subject: string;
+	    when: string;
+	    isAnnotated: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TagDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.hash = source["hash"];
+	        this.shortHash = source["shortHash"];
+	        this.subject = source["subject"];
+	        this.when = source["when"];
+	        this.isAnnotated = source["isAnnotated"];
+	    }
+	}
 	export class RepoSnapshot {
 	    repoPath: string;
 	    repoName: string;
@@ -441,6 +529,11 @@ export namespace engine {
 	    files: FileDTO[];
 	    commits: CommitDTO[];
 	    branches: BranchDTO[];
+	    tags: TagDTO[];
+	    remotes: RemoteDTO[];
+	    remoteBranches: RemoteBranchDTO[];
+	    canUndo: boolean;
+	    undoHint: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RepoSnapshot(source);
@@ -458,6 +551,11 @@ export namespace engine {
 	        this.files = this.convertValues(source["files"], FileDTO);
 	        this.commits = this.convertValues(source["commits"], CommitDTO);
 	        this.branches = this.convertValues(source["branches"], BranchDTO);
+	        this.tags = this.convertValues(source["tags"], TagDTO);
+	        this.remotes = this.convertValues(source["remotes"], RemoteDTO);
+	        this.remoteBranches = this.convertValues(source["remoteBranches"], RemoteBranchDTO);
+	        this.canUndo = source["canUndo"];
+	        this.undoHint = source["undoHint"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -522,6 +620,8 @@ export namespace engine {
 		    return a;
 		}
 	}
+	
+	
 	
 	export class RepoFileDTO {
 	    path: string;

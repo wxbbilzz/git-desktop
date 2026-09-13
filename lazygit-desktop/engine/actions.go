@@ -105,7 +105,8 @@ func (e *Engine) UnstageAll() (*RepoSnapshot, error) {
 //   - 已跟踪文件：`git checkout -- <path>`
 //   - 未跟踪文件：直接删除磁盘上的文件
 //
-// 这是个不可逆操作，前端务必先弹确认框。
+// 这是整个软件里唯一会真的让内容消失的操作，所以丢弃之前先把内容存进
+// 「回收站」（见 restore.go），用户可以再捡回来。
 func (e *Engine) DiscardFile(path string) (*RepoSnapshot, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -118,6 +119,9 @@ func (e *Engine) DiscardFile(path string) (*RepoSnapshot, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// 先留一份内容，再动手
+	e.recordDiscardLocked(path)
 
 	if file.Tracked {
 		if err := e.git.WorkingTree.DiscardUnstagedFileChanges(file); err != nil {
@@ -234,6 +238,26 @@ func (e *Engine) CreateBranchFrom(name, start string, checkout bool) (*RepoSnaps
 		return nil, fmt.Errorf("%s", firstErrorLine(out))
 	}
 	return e.snapshotLocked()
+}
+
+// RenameBranch 重命名本地分支。
+//
+// git branch -m 在「新旧名字都是当前分支」时会直接改当前分支名，
+// 这正是用户期望的行为，所以不用额外处理。
+func (e *Engine) RenameBranch(oldName, newName string) (*RepoSnapshot, error) {
+	oldName = strings.TrimSpace(oldName)
+	newName = strings.TrimSpace(newName)
+	if oldName == "" || newName == "" {
+		return nil, fmt.Errorf("分支名不能为空")
+	}
+	if oldName == newName {
+		return nil, fmt.Errorf("新分支名和原来一样")
+	}
+	if strings.ContainsAny(newName, " \t~^:?*[\\") {
+		return nil, fmt.Errorf("分支名里有非法字符（不能包含空格、~^:?*[ 等）")
+	}
+	return e.runOpLocked([]string{"branch", "-m", oldName, newName}, nil,
+		fmt.Sprintf("把 %s 重命名为 %s", oldName, newName))
 }
 
 // DeleteBranch 删除本地分支。

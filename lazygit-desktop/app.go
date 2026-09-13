@@ -36,6 +36,14 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
+	// 仓库被外部改动（编辑器里改文件、终端里跑 git）时通知前端刷新。
+	// 必须在打开仓库之前注册 —— 引擎只有在拿到回调时才会去装监听。
+	a.engine.SetRepoChangeHandler(func() {
+		if a.ctx != nil {
+			runtime.EventsEmit(a.ctx, "repo:changed")
+		}
+	})
+
 	// 把文件夹（或文件）拖进窗口即可打开它所在的仓库。
 	// Wails 会把拖进来的绝对路径交给我们，这里往上找 .git，
 	// 所以拖仓库里的任意子目录也能正确打开整个仓库。
@@ -432,6 +440,11 @@ func (a *App) DeleteBranch(name string, force bool) (*engine.RepoSnapshot, error
 	return a.engine.DeleteBranch(name, force)
 }
 
+// RenameBranch 重命名本地分支。
+func (a *App) RenameBranch(oldName string, newName string) (*engine.RepoSnapshot, error) {
+	return a.engine.RenameBranch(oldName, newName)
+}
+
 // PushSetUpstream 首次推送：把当前分支推上去并设置上游。
 func (a *App) PushSetUpstream(remote string) (*engine.RepoSnapshot, error) {
 	return a.engine.PushSetUpstream(remote, a.progressEmitter())
@@ -517,4 +530,101 @@ func (a *App) PendingStartupFolder() (*engine.FolderInfo, error) {
 		return nil, nil
 	}
 	return a.engine.InspectFolder(a.startupNotRepo)
+}
+
+// ---------------------------------------------------------------------------
+// 高频操作（从「Git 操作」目录里提出来，做成界面上的直接动作）
+// ---------------------------------------------------------------------------
+
+// MergeBranch 把某个分支合并进当前分支。
+func (a *App) MergeBranch(name string, noFF bool, squash bool) (*engine.RepoSnapshot, error) {
+	return a.engine.MergeBranch(name, noFF, squash)
+}
+
+// RebaseOnto 把当前分支变基到目标分支之上。
+func (a *App) RebaseOnto(onto string) (*engine.RepoSnapshot, error) {
+	return a.engine.RebaseOnto(onto)
+}
+
+// CherryPick 把某次提交拣选到当前分支。
+func (a *App) CherryPick(hash string) (*engine.RepoSnapshot, error) {
+	return a.engine.CherryPick(hash)
+}
+
+// RevertCommit 生成一个反向提交来抵消某次提交。
+func (a *App) RevertCommit(hash string) (*engine.RepoSnapshot, error) {
+	return a.engine.RevertCommit(hash)
+}
+
+// ResetTo 把当前分支回退到某个提交。mode: soft / mixed / hard。
+func (a *App) ResetTo(commit string, mode string) (*engine.RepoSnapshot, error) {
+	return a.engine.ResetTo(commit, mode)
+}
+
+// AmendCommit 修补最后一次提交。summary 为空表示只改内容不改信息。
+func (a *App) AmendCommit(summary string, description string) (*engine.RepoSnapshot, error) {
+	return a.engine.AmendCommit(summary, description)
+}
+
+// ContinueOperation 继续被冲突中断的变基 / 拣选 / revert。
+func (a *App) ContinueOperation() (*engine.RepoSnapshot, error) {
+	return a.engine.ContinueOperation()
+}
+
+// AbortOperation 中止被中断的操作。
+func (a *App) AbortOperation() (*engine.RepoSnapshot, error) {
+	return a.engine.AbortOperation()
+}
+
+// UndoLast 撤销上一步（只移动分支指针，改动保留在暂存区，不丢内容）。
+func (a *App) UndoLast() (*engine.RepoSnapshot, error) {
+	return a.engine.UndoLast()
+}
+
+// CreateTag 创建标签。message 非空时为附注标签；ref 为空表示打在 HEAD 上。
+func (a *App) CreateTag(name string, ref string, message string) (*engine.RepoSnapshot, error) {
+	return a.engine.CreateTag(name, ref, message)
+}
+
+// DeleteTag 删除本地标签。
+func (a *App) DeleteTag(name string) (*engine.RepoSnapshot, error) {
+	return a.engine.DeleteTag(name)
+}
+
+// PushTag 推送单个标签。
+func (a *App) PushTag(name string, remote string) (*engine.RepoSnapshot, error) {
+	return a.engine.PushTag(name, remote, a.progressEmitter())
+}
+
+// PushAllTags 推送所有本地标签。
+func (a *App) PushAllTags(remote string) (*engine.RepoSnapshot, error) {
+	return a.engine.PushAllTags(remote, a.progressEmitter())
+}
+
+// AddRemote / RemoveRemote / SetRemoteURL 管理远端。
+func (a *App) AddRemote(name string, url string) (*engine.RepoSnapshot, error) {
+	return a.engine.AddRemote(name, url)
+}
+
+func (a *App) RemoveRemote(name string) (*engine.RepoSnapshot, error) {
+	return a.engine.RemoveRemote(name)
+}
+
+func (a *App) SetRemoteURL(name string, url string) (*engine.RepoSnapshot, error) {
+	return a.engine.SetRemoteURL(name, url)
+}
+
+// CheckoutRemoteBranch 从远端分支创建本地分支并切过去。
+func (a *App) CheckoutRemoteBranch(remoteBranch string, local string) (*engine.RepoSnapshot, error) {
+	return a.engine.CheckoutRemoteBranch(remoteBranch, local)
+}
+
+// DiscardedFiles 返回本次运行里丢弃过的文件（回收站）。
+func (a *App) DiscardedFiles() []engine.DiscardRecord {
+	return a.engine.DiscardedFiles()
+}
+
+// RestoreDiscarded 把某条丢弃记录的内容恢复回原路径。
+func (a *App) RestoreDiscarded(id string) (*engine.RepoSnapshot, error) {
+	return a.engine.RestoreDiscarded(id)
 }

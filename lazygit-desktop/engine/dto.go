@@ -22,6 +22,14 @@ type RepoSnapshot struct {
 	Files         []FileDTO   `json:"files"`
 	Commits       []CommitDTO `json:"commits"`
 	Branches      []BranchDTO `json:"branches"`
+	// 标签 / 远端 / 远端分支：这些都是侧栏要直接渲染的，跟着快照一起回来
+	Tags           []TagDTO          `json:"tags"`
+	Remotes        []RemoteDTO       `json:"remotes"`
+	RemoteBranches []RemoteBranchDTO `json:"remoteBranches"`
+	// CanUndo 为真表示可以撤销上一步（界面用它决定撤销按钮是否可点）
+	CanUndo bool `json:"canUndo"`
+	// UndoHint 是「撤销会撤掉什么」，例如：撤销「提交: 修复上传」
+	UndoHint string `json:"undoHint"`
 }
 
 // FileDTO 是工作区 / 暂存区里的一个文件。
