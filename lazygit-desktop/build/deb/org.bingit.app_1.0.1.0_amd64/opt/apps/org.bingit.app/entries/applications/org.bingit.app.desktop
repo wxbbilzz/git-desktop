@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Bingit
+Name[zh_CN]=冰冰 Git
+Comment=A git client with a friendly interface
+Comment[zh_CN]=界面友好的 Git 客户端
+Exec=/opt/apps/org.bingit.app/files/bin/bingit-launch
+Icon=org.bingit.app
+Terminal=false
+StartupNotify=true
+StartupWMClass=org.bingit.app
+Categories=Development;RevisionControl;
+Keywords=git;bingit;lazygit;vcs;版本控制;

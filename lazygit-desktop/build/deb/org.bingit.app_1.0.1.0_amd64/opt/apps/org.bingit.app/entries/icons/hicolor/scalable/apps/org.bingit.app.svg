@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="a-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#67e8f9"/>
+      <stop offset="55%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <radialGradient id="a-glow" cx="50%" cy="30%" r="70%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="a-soft"><feGaussianBlur stdDeviation="3"/></filter>
+  </defs>
+
+  <rect x="6" y="6" width="244" height="244" rx="60" fill="url(#a-bg)"/>
+  <rect x="6" y="6" width="244" height="244" rx="60" fill="url(#a-glow)"/>
+
+  <!-- 主干（主分支） -->
+  <g stroke="#ffffff" stroke-width="7" stroke-linecap="round" fill="none">
+    <path d="M128 208 L128 48"/>
+  </g>
+  <!-- 两条侧分支（像冰晶的枝杈） -->
+  <g stroke="#ffffff" stroke-width="7" stroke-linecap="round" fill="none" opacity="0.92">
+    <path d="M128 158 C96 158, 78 138, 78 112 L78 84"/>
+    <path d="M128 108 C160 108, 178 88, 178 62 L178 40"/>
+  </g>
+
+  <!-- 提交节点 -->
+  <g fill="#ffffff">
+    <circle cx="128" cy="208" r="15"/>
+    <circle cx="128" cy="158" r="12"/>
+    <circle cx="78"  cy="84"  r="12"/>
+    <circle cx="128" cy="108" r="12"/>
+    <circle cx="178" cy="40"  r="12"/>
+  </g>
+  <!-- 主干最上方（雪花尖） -->
+  <circle cx="128" cy="48" r="10"/>
+
+  <!-- 冰晶碎片：点缀成雪花感 -->
+  <g stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" opacity="0.75">
+    <path d="M78 62 L78 48 M71 55 L78 62 L85 55"/>
+    <path d="M178 18 L178 6  M171 11 L178 18 L185 11"/>
+    <path d="M168 214 L178 226 M178 226 L188 214"/>
+  </g>
+</svg>

@@ -56,11 +56,11 @@ func New() (*Engine, error) {
 	log := logs.NewProductionLogger()
 
 	appConfig, err := config.NewAppConfig(
-		"lazygit-desktop",
-		"0.1.0",
+		"bingit",
+		"1.0.1.0",
 		"",
 		"",
-		"lazygit-desktop",
+		"bingit",
 		false,
 		os.TempDir(),
 	)

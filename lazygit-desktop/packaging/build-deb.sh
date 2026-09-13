@@ -13,7 +13,7 @@
 set -euo pipefail
 
 APPID="org.bingit.app"
-VERSION="1.0.0.0"
+VERSION="1.0.1.0"
 ARCH="amd64"
 NAME="Bingit"
 NAME_ZH="冰冰 Git"
