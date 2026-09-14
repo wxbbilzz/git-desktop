@@ -260,22 +260,18 @@ export default function App() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // 启动时如果所在目录不是 git 仓库，直接问「要不要在这里建仓库」。
-  // 这样 `cd 某个项目 && bingit` 就能一步到位。
+  // 只在「浏览器预览模式」下拉一次快照。
+  //
+  // 真实运行时（有 Wails 桥）引擎一律以「没有仓库」的状态启动（见 app.go 的
+  // startup），这里再去调 Snapshot 只会失败，而且会走 run() 的失败分支
+  // 平白播一次出错音效。启动该显示什么由 snapshot 是否为 null 决定。
+  //
+  // 但 `npm run dev` 单独调界面时没有后端，欢迎页上的三个入口都调不到数据
+  // （mock 的 pickRepo 返回空串），所以那种情况下要直接用演示数据把界面铺开，
+  // 否则整个 UI 没法预览。
   useEffect(() => {
-    void (async () => {
-      try {
-        const info = await api.pendingStartupFolder();
-        if (info) setPendingFolder(info);
-      } catch {
-        /* 忽略 */
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-    // 只在挂载时加载一次
+    if (!isDesktop()) void refresh();
+    // 只在挂载时执行一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

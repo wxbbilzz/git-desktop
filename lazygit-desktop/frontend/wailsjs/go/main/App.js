@@ -158,10 +158,6 @@ export function Operations() {
   return window['go']['main']['App']['Operations']();
 }
 
-export function PendingStartupFolder() {
-  return window['go']['main']['App']['PendingStartupFolder']();
-}
-
 export function PickDirectory(arg1) {
   return window['go']['main']['App']['PickDirectory'](arg1);
 }

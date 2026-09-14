@@ -125,7 +125,6 @@ interface DesktopBridge {
 
   // 完整仓库文件树
   InspectFolder(path: string): Promise<FolderInfo>;
-  PendingStartupFolder(): Promise<FolderInfo | null>;
   InitRepoHere(path: string, initialBranch: string): Promise<RepoSnapshot>;
   RepoFiles(): Promise<RepoFileDTO[]>;
   FileContent(path: string): Promise<FileContentDTO>;
@@ -759,11 +758,5 @@ export const api = {
     const b = bridge();
     if (!b) return mockSnapshot();
     return b.InitRepoHere(path, initialBranch);
-  },
-
-  async pendingStartupFolder(): Promise<FolderInfo | null> {
-    const b = bridge();
-    if (!b) return null;
-    return b.PendingStartupFolder();
   },
 };

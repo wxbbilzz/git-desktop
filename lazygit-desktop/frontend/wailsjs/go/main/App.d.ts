@@ -80,8 +80,6 @@ export function OperationChoices():Promise<engine.OperationChoices>;
 
 export function Operations():Promise<Array<engine.OperationSummary>>;
 
-export function PendingStartupFolder():Promise<engine.FolderInfo>;
-
 export function PickDirectory(arg1:string):Promise<string>;
 
 export function PickRepo():Promise<string>;
