@@ -1843,31 +1843,9 @@ body {
   color: var(--muted);
 }
 
-/* 侧边栏有 4 个标签，292px 宽度下会挤爆 —— 压缩间距让它一行放下 */
-.panel-header .tabs {
-  gap: 2px;
-  padding: 3px;
-}
-
-.panel-header .tab {
-  padding: 0 9px;
-  font-size: 11.5px;
-}
-
-.panel-header .tab .count {
-  margin-left: 4px;
-  font-size: 10.5px;
-}
-
-/* 万一还是放不下，允许横向滚动而不是把标签挤掉 */
-.panel-header {
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.panel-header::-webkit-scrollbar {
-  display: none;
-}
+/* 侧栏的横向标签页已改为左侧竖向导轨，
+   这里原来那批 .panel-header .tabs / .tab 压缩与横向滚动规则一并删掉了，
+   现在见下方「侧栏竖向标签导轨」一节。 */
 
 /* ==========================================================================
    性能修正层
@@ -2016,31 +1994,117 @@ body {
   flex: 0 0 auto;
 }
 
-/* 侧边栏顶栏：标签均分整行宽度，不再和右侧按钮抢空间 */
+/* 侧边栏顶栏：给右侧的分隔/间距留一点余量 */
 .panel-header {
   gap: 6px;
   overflow: visible;
 }
 
-.panel-header .tabs {
-  flex: 1 1 auto;
+/* -------------------------------------------------------- 侧栏竖向标签导轨 */
+/* 7 个标签横排时，在 320px 宽的侧栏里每个只剩约 40px，文字全被省略号截断，
+   还白占掉一整行高度。改成左侧竖向导轨后标签只放图标，
+   名称与数量走悬停气泡，顶栏整行省掉，列表多出约 50px 可视高度。 */
+
+.panel.side-panel {
+  flex-direction: row;
+}
+
+.side-panel > .panel-body {
+  /* 不给 0 的话长路径会把导轨挤出去 */
   min-width: 0;
+}
+
+.side-rail {
+  flex: 0 0 auto;
+  width: 40px;
   display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 2px;
+  border-right: 1px solid var(--border);
+  background: var(--panel-2);
 }
 
-.panel-header .tab {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 0 6px;
+.rail-tab {
+  position: relative;
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-item);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+/* 导轨里只有图标，它是唯一的识别依据，比横排标签里的图标放大一点 */
+.rail-tab svg {
+  width: 16px;
+  height: 16px;
+}
+
+.rail-tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-dim);
+}
+
+.rail-tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* 数量角标：三位数放不下，组件里已经截成 99+ */
+.rail-tab .count {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 3px;
+  border-radius: var(--radius-pill);
+  background: var(--panel-3);
+  color: var(--text-dim);
+  font-size: 9px;
+  line-height: 12px;
   text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.panel-header .tab .count {
-  margin-left: 3px;
-  opacity: 0.7;
+.rail-tab.active .count {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+/* 悬停气泡：从导轨右侧展开。
+   导轨宽 40px、侧栏宽 320px，气泡完全落在面板内部，
+   所以不会被 .panel 的 overflow:hidden 裁掉。 */
+.rail-tab::after {
+  content: attr(data-label);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 9px;
+  border-radius: var(--radius-item);
+  border: 1px solid var(--border-strong);
+  background: var(--panel-3);
+  color: var(--text);
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  z-index: 5;
+}
+
+.rail-tab:hover::after,
+.rail-tab:focus-visible::after {
+  opacity: 1;
 }
 
 /* 列表上方的操作行：把按钮和视图切换放在一起，用整行宽度 */
@@ -2303,37 +2367,8 @@ body {
    新增交互层：过滤框 / 右键菜单 / 命令面板 / 确认框 / 回收站 / 小节标题
    =========================================================================== */
 
-/* 侧栏的标签页有 7 个（变更/暂存/分支/标签/远端/储藏/文件）。
-   前面「性能修正层」里给 .panel-header .tab 定的 flex: 1 1 0 是当初 4 个标签时
-   写的：7 个平分 288px 后每个只剩 38px，而内容要 50px —— 于是每个标签的文字
-   都被压扁截断。这里改成 4 列网格：两行放得下，每格约 66px，文字和数字都完整。 */
-.panel-header .tabs.wrap {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  width: 100%;
-  gap: 4px;
-  padding: 4px;
-  border-radius: var(--radius-item);
-}
-
-.panel-header .tabs.wrap .tab {
-  /* 宽度交给网格分配，不需要 flex 再插一脚 */
-  flex: none;
-  width: 100%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 8px;
-  font-size: 11.5px;
-  /* 上一层的 ellipsis + overflow:hidden 会把计数裁掉，这里放开 */
-  overflow: visible;
-  text-overflow: clip;
-}
-
-.panel-header .tabs.wrap .tab .count {
-  margin-left: 4px;
-  font-size: 10.5px;
-}
+/* 侧栏标签页：横排的「4 列网格」方案已废弃，
+   改为左侧竖向导轨（见上文「侧栏竖向标签导轨」）。 */
 
 /* --------------------------------------------------------------- 过滤框 */
 

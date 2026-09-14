@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import type {
   BranchDTO,
   FileDTO,
@@ -20,6 +21,7 @@ import {
   IconCherry,
   IconCloud,
   IconCopy,
+  IconFolder,
   IconLayers,
   IconMerge,
   IconMinus,
@@ -538,54 +540,54 @@ export function Sidebar({
     }
   }, [branchStart, onBranchStartUsed]);
 
+  // 侧栏标签改成了左侧竖向导轨，只放图标；名称和数量走悬停气泡。
+  // 之所以不再横排：7 个标签挤在 320px 宽的侧栏里，每个只剩约 40px，
+  // 文字全被省略号截断，还白占掉一整行高度。
+  const railTabs: {
+    id: SidebarTab;
+    label: string;
+    count?: number;
+    icon: ReactNode;
+  }[] = [
+    { id: "changes", label: "变更", count: changedCount, icon: <IconPencil /> },
+    { id: "staged", label: "暂存", count: stagedCount, icon: <IconCheck /> },
+    {
+      id: "branches",
+      label: "分支",
+      count: snapshot.branches.length,
+      icon: <IconBranch />,
+    },
+    { id: "tags", label: "标签", count: snapshot.tags.length, icon: <IconTag /> },
+    {
+      id: "remotes",
+      label: "远端",
+      count: snapshot.remotes.length,
+      icon: <IconCloud />,
+    },
+    { id: "stashes", label: "储藏", icon: <IconArchive /> },
+    { id: "files", label: "文件", count: repoFiles.length, icon: <IconFolder /> },
+  ];
+
   return (
-    <section className="panel">
-      <div className="panel-header">
-        <div className="tabs wrap">
+    <section className="panel side-panel">
+      <nav className="side-rail">
+        {railTabs.map((t) => (
           <button
-            className={"tab" + (tab === "changes" ? " active" : "")}
-            onClick={() => onTabChange("changes")}
+            key={t.id}
+            type="button"
+            className={"rail-tab" + (tab === t.id ? " active" : "")}
+            data-label={t.count ? `${t.label} ${t.count}` : t.label}
+            aria-label={t.label}
+            aria-current={tab === t.id}
+            onClick={() => onTabChange(t.id)}
           >
-            变更<span className="count">{changedCount}</span>
+            {t.icon}
+            {!!t.count && (
+              <span className="count">{t.count > 99 ? "99+" : t.count}</span>
+            )}
           </button>
-          <button
-            className={"tab" + (tab === "staged" ? " active" : "")}
-            onClick={() => onTabChange("staged")}
-          >
-            暂存<span className="count">{stagedCount}</span>
-          </button>
-          <button
-            className={"tab" + (tab === "branches" ? " active" : "")}
-            onClick={() => onTabChange("branches")}
-          >
-            分支<span className="count">{snapshot.branches.length}</span>
-          </button>
-          <button
-            className={"tab" + (tab === "tags" ? " active" : "")}
-            onClick={() => onTabChange("tags")}
-          >
-            标签<span className="count">{snapshot.tags.length}</span>
-          </button>
-          <button
-            className={"tab" + (tab === "remotes" ? " active" : "")}
-            onClick={() => onTabChange("remotes")}
-          >
-            远端<span className="count">{snapshot.remotes.length}</span>
-          </button>
-          <button
-            className={"tab" + (tab === "stashes" ? " active" : "")}
-            onClick={() => onTabChange("stashes")}
-          >
-            储藏
-          </button>
-          <button
-            className={"tab" + (tab === "files" ? " active" : "")}
-            onClick={() => onTabChange("files")}
-          >
-            文件<span className="count">{repoFiles.length}</span>
-          </button>
-        </div>
-      </div>
+        ))}
+      </nav>
 
       <div className="panel-body">
         {tab === "changes" && (
