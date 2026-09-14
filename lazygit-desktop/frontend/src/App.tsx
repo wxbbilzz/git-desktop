@@ -9,6 +9,14 @@ import {
   onSyncProgress,
 } from "./api";
 import { isSoundEnabled, setSoundEnabled, sfx } from "./sound";
+import {
+  forgetRecentRepo,
+  loadRecentRepos,
+  pushRecentRepo,
+  saveRecentRepos,
+  shortPath,
+  type RecentRepo,
+} from "./recent";
 import type {
   CloneProgress,
   CommitFileDTO,
@@ -32,22 +40,27 @@ import { InitRepoPrompt } from "./components/InitRepoPrompt";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import type { ConfirmSpec } from "./components/ConfirmDialog";
 import { ContextMenu } from "./components/ContextMenu";
-import type { MenuSpec } from "./components/ContextMenu";
+import type { MenuItem, MenuSpec } from "./components/ContextMenu";
 import { CommandPalette } from "./components/CommandPalette";
 import type { Command } from "./components/CommandPalette";
 import { DiscardTrash } from "./components/DiscardTrash";
+import { AboutDialog } from "./components/AboutDialog";
 import {
   IconArchive,
   IconBranch,
+  IconCheck,
   IconCherry,
   IconCloud,
   IconCommit,
   IconFetch,
   IconFolder,
+  IconHome,
+  IconInfo,
   IconMerge,
   IconPull,
   IconPush,
   IconRefresh,
+  IconRepo,
   IconRewind,
   IconSearch,
   IconTag,
@@ -106,11 +119,20 @@ export default function App() {
   const [menuSpec, setMenuSpec] = useState<MenuSpec | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [trashCount, setTrashCount] = useState(0);
 
   // 从历史面板跳到侧栏做某件事时，把参数带过去
   const [branchStart, setBranchStart] = useState<string | null>(null);
   const [tagRef, setTagRef] = useState<string | null>(null);
+
+  // 最近打开过的仓库（存在 localStorage）。标题栏的「切换项目」下拉用它列候选。
+  const [recentRepos, setRecentRepos] = useState<RecentRepo[]>(() =>
+    loadRecentRepos(),
+  );
+  // 记录时需要读当前列表，但不想把它写进 effect 依赖（否则每次记录都触发重跑）
+  const recentReposRef = useRef(recentRepos);
+  recentReposRef.current = recentRepos;
 
   // 完整仓库文件树。凡是拿到新快照的地方都要跟着刷新它，
   // 所以直接挂在 run() 里，而不是靠 useEffect 的依赖变化去猜。
@@ -123,7 +145,12 @@ export default function App() {
     }
   }, []);
 
-  /** 统一处理一次“动作 → 新快照”的往返，并维护忙碌态与错误提示。 */
+  /**
+   * 统一处理一次“动作 → 新快照”的往返，并维护忙碌态与错误提示。
+   *
+   * 返回是否成功。绝大多数调用点用 `void run(...)` 忽略它，
+   * 「切换项目」需要它 —— 打不开的仓库要从最近列表里剔除。
+   */
   const run = useCallback(
     async (label: string, fn: () => Promise<RepoSnapshot | null>) => {
       setBusy(label);
@@ -136,9 +163,11 @@ export default function App() {
           void reloadRepoFiles();
         }
         playFor(label);
+        return true;
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
         sfx.error();
+        return false;
       } finally {
         setBusy(null);
         setSyncProgress(null);
@@ -260,6 +289,24 @@ export default function App() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // 当前仓库一变就记一笔。
+  //
+  // 挂在这里而不是贴在各个「打开仓库」的调用点上：打开、切换、拖拽、
+  // 克隆、初始化的最终结果都是 repoPath 变了，一处就够，不会漏。
+  // 注意依赖只有 repoPath / repoName —— 普通的快照刷新不会重复记录。
+  useEffect(() => {
+    const path = snapshot?.repoPath;
+    if (!path) return;
+    const next = pushRecentRepo(
+      recentReposRef.current,
+      path,
+      snapshot?.repoName ?? "",
+    );
+    recentReposRef.current = next;
+    saveRecentRepos(next);
+    setRecentRepos(next);
+  }, [snapshot?.repoPath, snapshot?.repoName]);
+
   // 只在「浏览器预览模式」下拉一次快照。
   //
   // 真实运行时（有 Wails 桥）引擎一律以「没有仓库」的状态启动（见 app.go 的
@@ -368,11 +415,22 @@ export default function App() {
     };
   }, [selectedPath, selectedStaged, selectedCommit, activeCommitFile]);
 
-  // 仓库变了（比如切换仓库）后，之前的选中项可能已经不存在，清掉更安全
+  // 仓库变了（切换仓库 / 重新打开）后，之前的界面状态基本都失效了，一起清掉。
+  //
+  // 尤其是提交表单：切到另一个项目后，上一个项目的提交说明还留在输入框里，
+  // 很容易顺手就提交到错误的仓库。以前只清了选中项，这里补齐。
   useEffect(() => {
     setSelectedPath(null);
     setSelectedCommit(null);
     setSelectedRepoFile(null);
+    setSelectedLines(new Set());
+    setDiff("");
+    setFilePatch(null);
+    setCommitFiles([]);
+    setActiveCommitFile(null);
+    setSummary("");
+    setDescription("");
+    setError(null);
   }, [snapshot?.repoPath]);
 
   // 把文件夹拖进窗口即可打开仓库
@@ -635,6 +693,89 @@ export default function App() {
     });
   }, [askConfirm, run, snapshot?.canUndo, snapshot?.undoHint]);
 
+  // ------------------------------------------------------------ 切换项目
+
+  /** 打开本地仓库（弹目录选择框）。欢迎页和标题栏下拉都用它。 */
+  const handleOpenRepo = useCallback(() => {
+    void run("打开仓库", () => api.chooseAndOpenRepo());
+  }, [run]);
+
+  /** 把一条路径从「最近项目」里忘掉（只动本地列表，不碰磁盘）。 */
+  const forgetRepo = useCallback((path: string) => {
+    const next = forgetRecentRepo(recentReposRef.current, path);
+    recentReposRef.current = next;
+    saveRecentRepos(next);
+    setRecentRepos(next);
+  }, []);
+
+  /**
+   * 切到另一个打开过的仓库。
+   *
+   * 引擎那边 OpenRepo 会重建 git 命令层并重启文件监听（旧监听先摘掉），
+   * 所以「切换」就是再打开一次，不需要先关掉当前仓库。
+   *
+   * 打不开通常是那个目录被删掉或移走了。这种情况把这条记录剔掉，
+   * 否则它会一直留在列表里，点一次报一次同样的错。
+   */
+  const switchRepo = useCallback(
+    async (path: string) => {
+      if (path === snapshot?.repoPath) return;
+      const ok = await run("切换项目", () => api.openRepo(path));
+      if (!ok) {
+        forgetRepo(path);
+        // 保留 git 给的原因，只在后面补一句说明它已被移除
+        setError((prev) => (prev ? `${prev}（已从最近项目中移除）` : prev));
+      }
+    },
+    [run, snapshot?.repoPath, forgetRepo],
+  );
+
+  /**
+   * 标题栏的仓库名：点一下展开 / 收起「切换项目」下拉。
+   *
+   * 菜单自己也存在 menuSpec 里，和右键菜单共用一套渲染；
+   * 靠 spec.anchor 认人 —— 已经是这个下拉就收起，否则换成它。
+   */
+  const toggleSwitcher = useCallback(
+    (anchor: HTMLElement, x: number, y: number) => {
+      setMenuSpec((prev) => {
+        if (prev?.anchor === anchor) return null;
+
+        const items: MenuItem[] = recentRepos.map((r) => {
+          const current = r.path === snapshot?.repoPath;
+          return {
+            label: r.name,
+            hint: current ? "当前" : shortPath(r.path),
+            icon: current ? <IconCheck /> : <IconRepo />,
+            onClick: () => {
+              if (!current) void switchRepo(r.path);
+            },
+          };
+        });
+
+        if (items.length > 0) {
+          items.push({ label: "", separator: true });
+        }
+        items.push({
+          label: "打开本地仓库…",
+          icon: <IconFolder />,
+          onClick: handleOpenRepo,
+        });
+        // 「回到启动页」只在已经打开仓库时才有意义 —— 启动页上的下拉不需要它
+        if (snapshot) {
+          items.push({
+            label: "回到启动页",
+            icon: <IconHome />,
+            onClick: () => setSnapshot(null),
+          });
+        }
+
+        return { x, y, anchor, heading: "切换项目", items };
+      });
+    },
+    [recentRepos, snapshot, switchRepo, handleOpenRepo],
+  );
+
   // ---------------------------------------------------------------- 快捷键
 
   // 正在输入框里打字时不抢按键
@@ -660,13 +801,26 @@ export default function App() {
           setPaletteOpen(false);
           return;
         }
-        if (confirmSpec || menuSpec || showPublish || showOps) return;
+        if (confirmSpec || menuSpec || showPublish || showOps || showTrash || showAbout)
+          return;
         setPaletteOpen(true);
         return;
       }
 
       // 其余浮层打开时，按键交给浮层自己处理
-      if (paletteOpen || confirmSpec || menuSpec || showPublish || showOps) return;
+      //
+      // showTrash 以前漏在这个名单外，导致回收站开着时按空格还会去暂存
+      // 背后选中的文件、Ctrl+Z 还会弹撤销 —— 补上。
+      if (
+        paletteOpen ||
+        confirmSpec ||
+        menuSpec ||
+        showPublish ||
+        showOps ||
+        showTrash ||
+        showAbout
+      )
+        return;
       if (isTyping()) return;
 
       if (mod && e.key.toLowerCase() === "z") {
@@ -841,6 +995,7 @@ export default function App() {
       void run("打开仓库", () => api.chooseAndOpenRepo()),
     );
     add("其它", "刷新", <IconRefresh />, () => void refresh(), "Ctrl+R");
+    add("其它", "关于 Bingit", <IconInfo />, () => setShowAbout(true));
 
     return cmds;
   }, [
@@ -886,16 +1041,56 @@ export default function App() {
     />
   ) : null;
 
+  // 状态提示条：忙碌 / 错误 / 一闪而过的提示 / 浏览器预览模式的说明。
+  //
+  // 放在这里而不是主界面的 return 里，是因为欢迎页也要用：
+  // 在欢迎页从「最近项目」点开一个已经失效的仓库时，失败原因必须让用户看见，
+  // 否则表现就是「点了一下，菜单关了，什么也没发生」。
+  const statusBanner = (busy || error || toast || !isDesktop()) && (
+    <div className={"banner" + (error ? " error" : "")}>
+      {busy && <span className="spinner" />}
+      {error
+        ? error
+        : toast
+          ? toast
+          : busy
+            ? syncProgress && syncProgress.phase
+              ? `正在${busy}… ${syncProgress.phase}${
+                  syncProgress.percent >= 0 ? ` ${syncProgress.percent}%` : ""
+                }`
+              : `正在${busy}…`
+            : "浏览器预览模式：当前是演示数据，用 wails dev 运行才会操作真实仓库。"}
+    </div>
+  );
+
   // 没有打开任何仓库时，显示启动界面：
   // 新建仓库 / 打开本地仓库 / 从网址下载仓库 三个入口都在那里。
+  //
+  // 标题栏在这里也给一个「最近项目」下拉 —— 一进软件就能直接点开上次的项目，
+  // 而不用先走一遍「打开仓库」。列表为空时按钮不出现。
   if (!snapshot) {
     return (
       <div className="app" data-drop-target>
-        <TitleBar />
+        <TitleBar
+          recentCount={recentRepos.length}
+          switcherOpen={menuSpec?.anchor != null}
+          onToggleSwitcher={toggleSwitcher}
+          onAbout={() => setShowAbout(true)}
+        />
+        {statusBanner}
         <Welcome onOpened={setSnapshot} onOpenFolder={(p) => void openFolder(p)} />
         {initPrompt}
         {confirmSpec && (
           <ConfirmDialog {...confirmSpec} onCancel={() => setConfirmSpec(null)} />
+        )}
+        {menuSpec && (
+          <ContextMenu spec={menuSpec} onClose={() => setMenuSpec(null)} />
+        )}
+        {showAbout && (
+          <AboutDialog
+            onClose={() => setShowAbout(false)}
+            onCopy={(t, l) => void copy(t, l)}
+          />
         )}
       </div>
     );
@@ -935,16 +1130,17 @@ export default function App() {
     });
   };
 
-  const handleOpenRepo = () => {
-    void run("打开仓库", async () => {
-      const next = await api.chooseAndOpenRepo();
-      return next;
-    });
-  };
-
   return (
     <div className="app" data-drop-target>
-      <TitleBar repoName={snapshot.repoName} branch={snapshot.branch} />
+      <TitleBar
+        repoName={snapshot.repoName}
+        branch={snapshot.branch}
+        repoPath={snapshot.repoPath}
+        recentCount={recentRepos.length}
+        switcherOpen={menuSpec?.anchor != null}
+        onToggleSwitcher={toggleSwitcher}
+        onAbout={() => setShowAbout(true)}
+      />
 
       <TopBar
         snapshot={snapshot}
@@ -977,22 +1173,7 @@ export default function App() {
         onAbort={doAbort}
       />
 
-      {(busy || error || toast || !isDesktop()) && (
-        <div className={"banner" + (error ? " error" : "")}>
-          {busy && <span className="spinner" />}
-          {error
-            ? error
-            : toast
-              ? toast
-              : busy
-                ? syncProgress && syncProgress.phase
-                  ? `正在${busy}… ${syncProgress.phase}${
-                      syncProgress.percent >= 0 ? ` ${syncProgress.percent}%` : ""
-                    }`
-                  : `正在${busy}…`
-                : "浏览器预览模式：当前是演示数据，用 wails dev 运行才会操作真实仓库。"}
-        </div>
-      )}
+      {statusBanner}
 
       <div className="layout">
         <Sidebar
@@ -1232,6 +1413,14 @@ export default function App() {
             if (r.snapshot) setSnapshot(r.snapshot);
           }}
           onConfirm={askConfirm}
+        />
+      )}
+
+      {showAbout && (
+        <AboutDialog
+          onClose={() => setShowAbout(false)}
+          onCopy={(t, l) => void copy(t, l)}
+          repoPath={snapshot.repoPath}
         />
       )}
     </div>

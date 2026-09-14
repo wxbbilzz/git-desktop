@@ -13,13 +13,24 @@
 set -euo pipefail
 
 APPID="org.bingit.app"
-VERSION="2.0.0.0"
 ARCH="amd64"
 NAME="Bingit"
 NAME_ZH="冰冰 Git"
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$HERE/build/deb"
+
+# ---------- 版本号：唯一来源是 frontend/src/version.ts ----------
+# 「关于」对话框显示的就是这个值，这里再读一遍，两者永远不会对不上。
+# 读不到或格式不对就直接失败，绝不拿一个空版本号去打 deb。
+VERSION_FILE="$HERE/frontend/src/version.ts"
+VERSION="$(sed -n 's/.*APP_VERSION[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$VERSION_FILE" | head -1)"
+
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "无法从 $VERSION_FILE 读出合法版本号（应为 MAJOR.MINOR.PATCH.BUILD），实际读到：「$VERSION」" >&2
+  exit 1
+fi
+
 PKGROOT="$OUT/${APPID}_${VERSION}_${ARCH}"
 
 # 清理上一次的构建产物
@@ -33,6 +44,7 @@ mkdir -p "$PKGROOT/DEBIAN"
 # 上一次残留的旧二进制，于是打出来的 deb 里装的是过期的程序，
 # 而且脚本还会打印「打包完成」。所以改成：先删旧产物，再让 wails build
 # 自己决定成败（set -e 会让它失败即退出）。
+echo "==> 版本 $VERSION（读自 frontend/src/version.ts）"
 echo "==> 编译"
 cd "$HERE"
 BIN="$HERE/build/bin/bingit"

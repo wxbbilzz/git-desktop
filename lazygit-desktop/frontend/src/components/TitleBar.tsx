@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { sfx } from "../sound";
+import { IconInfo } from "./icons";
 
 // 自绘标题栏。
 //
@@ -14,10 +15,37 @@ import { sfx } from "../sound";
 interface Props {
   repoName?: string;
   branch?: string;
+  /** 当前仓库的绝对路径，作为仓库名的悬停提示 */
+  repoPath?: string;
+  /** 最近打开过多少个仓库。没有打开仓库时，用它决定要不要显示「最近项目」入口 */
+  recentCount?: number;
+  /** 「切换项目」下拉是否展开（用来把按钮画成展开态、箭头翻转） */
+  switcherOpen?: boolean;
+  /** 点仓库名：把触发元素和它的屏幕位置交给上层去决定开还是收 */
+  onToggleSwitcher?: (anchor: HTMLElement, x: number, y: number) => void;
+  /** 点「关于」 */
+  onAbout?: () => void;
 }
 
-export function TitleBar({ repoName, branch }: Props) {
+export function TitleBar({
+  repoName,
+  branch,
+  repoPath,
+  recentCount = 0,
+  switcherOpen,
+  onToggleSwitcher,
+  onAbout,
+}: Props) {
   const [maximised, setMaximised] = useState(false);
+  const repoBtnRef = useRef<HTMLButtonElement>(null);
+
+  // 下拉触发器的文字：
+  //   打开着仓库 -> 仓库名（点了是「切换项目」）
+  //   没打开仓库但有过记录 -> 「最近项目」，这样一进软件就能直接开上次的项目
+  //   都没有 -> 不显示
+  const switcherLabel = repoName ?? (recentCount > 0 ? "最近项目" : null);
+  // 没有仓库名时它不是一条路径，别用等宽字体渲染
+  const isRecentEntry = !repoName && switcherLabel !== null;
 
   // 窗口最大化状态会变（用户双击标题栏、拖到屏幕边缘触发贴边等），
   // 所以定时同步一下，用它切换「最大化 / 还原」按钮的图标。
@@ -58,12 +86,48 @@ export function TitleBar({ repoName, branch }: Props) {
 
       <span className="titlebar-name">Bingit</span>
 
-      {repoName && (
+      {switcherLabel && (
         <>
           <span className="titlebar-sep">·</span>
-          <span className="titlebar-repo" title={repoName}>
-            {repoName}
-          </span>
+          <button
+            ref={repoBtnRef}
+            type="button"
+            className={
+              "titlebar-repo" +
+              (isRecentEntry ? " recent" : "") +
+              (switcherOpen ? " open" : "")
+            }
+            title={
+              repoPath ??
+              (repoName ? repoName : "最近打开过的项目，点开可以切换")
+            }
+            onClick={() => {
+              const el = repoBtnRef.current;
+              if (!el || !onToggleSwitcher) return;
+              sfx.click();
+              const rect = el.getBoundingClientRect();
+              onToggleSwitcher(el, rect.left, rect.bottom + 6);
+            }}
+            // 标题栏的双击是「最大化/还原」，双击这个按钮不应该触发它
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            <span className="titlebar-repo-name">{switcherLabel}</span>
+            <svg
+              className="titlebar-caret"
+              viewBox="0 0 12 12"
+              width="10"
+              height="10"
+            >
+              <path
+                d="m3 4.5 3 3 3-3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
         </>
       )}
 
@@ -74,6 +138,21 @@ export function TitleBar({ repoName, branch }: Props) {
       )}
 
       <span className="titlebar-spacer" />
+
+      {onAbout && (
+        <button
+          type="button"
+          className="titlebar-about"
+          title="关于 Bingit"
+          onClick={() => {
+            sfx.click();
+            onAbout();
+          }}
+          onDoubleClick={(e) => e.stopPropagation()}
+        >
+          <IconInfo />
+        </button>
+      )}
 
       <div className="titlebar-controls">
         <button className="winbtn" title="最小化" onClick={minimise}>

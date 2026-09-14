@@ -2274,15 +2274,62 @@ body {
   flex: 0 0 auto;
 }
 
+/* 仓库名同时是「切换项目」下拉的触发器，所以从 span 换成了 button：
+   这里把浏览器默认的按钮外观全部抹掉，只留胶囊状的 hover 反馈。 */
 .titlebar-repo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 260px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
   font-size: 12px;
   color: var(--text-dim);
   font-family: var(--mono);
-  max-width: 260px;
+  cursor: pointer;
+  flex: 0 1 auto;
+  /* 标题栏整体是拖动区，按钮必须排除，否则点它会变成拖窗口 */
+  --wails-draggable: no-drag;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.titlebar-repo:hover,
+.titlebar-repo.open {
+  background: var(--panel-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.titlebar-repo-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 0 1 auto;
+}
+
+/* 启动页上的那个入口写的不是路径，而是「最近项目」，
+   所以换回常规字体；底色稍微提一点，让它看起来像个可点的入口。 */
+.titlebar-repo.recent {
+  font-family: var(--sans);
+  color: var(--accent-2);
+  background: var(--accent-soft);
+}
+
+.titlebar-repo.recent:hover,
+.titlebar-repo.recent.open {
+  color: var(--text);
+}
+
+.titlebar-caret {
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 0.16s ease;
+}
+
+.titlebar-repo.open .titlebar-caret {
+  transform: rotate(180deg);
 }
 
 .titlebar-branch {
@@ -2301,6 +2348,30 @@ body {
 
 .titlebar-spacer {
   flex: 1 1 auto;
+}
+
+/* 「关于」入口。放在窗口按钮左边，但留一点间距，
+   免得看起来像第 4 个窗口按钮。 */
+.titlebar-about {
+  width: 30px;
+  height: 28px;
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+  --wails-draggable: no-drag;
+  transition: background-color 0.07s linear, color 0.07s linear;
+}
+
+.titlebar-about:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text);
 }
 
 .titlebar-controls {
@@ -2454,6 +2525,18 @@ body {
   border: 1px solid var(--border-strong);
   background: var(--panel-2);
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+}
+
+/* 菜单标题：只有「切换项目」这类开关式下拉会用到，
+   右键菜单不带标题 */
+.ctx-heading {
+  padding: 4px 9px 7px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--muted);
 }
 
 .ctx-item {
@@ -2685,6 +2768,101 @@ body {
   width: min(620px, 94vw);
   height: auto;
   max-height: min(600px, 90vh);
+}
+
+/* ------------------------------------------------------------- 「关于」 */
+
+.about-panel {
+  width: min(480px, 92vw);
+  height: auto;
+  max-height: min(640px, 92vh);
+}
+
+.about-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 24px 22px;
+  overflow-y: auto;
+}
+
+.about-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  margin-bottom: 6px;
+}
+
+.about-name {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.about-version {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.about-desc {
+  margin: 12px 0 16px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.about-rows {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  /* 行之间用极淡的分隔线，比一个个卡片轻 */
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-item);
+  overflow: hidden;
+}
+
+.about-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--panel-2);
+}
+
+.about-key {
+  flex: 0 0 auto;
+  width: 76px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.about-val {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  word-break: break-word;
+}
+
+.about-foot {
+  width: 100%;
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.about-foot .hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--muted);
 }
 
 .trash-body {

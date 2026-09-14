@@ -19,6 +19,15 @@ export interface MenuSpec {
   x: number;
   y: number;
   items: MenuItem[];
+  /** 可选标题，显示在菜单顶部（「切换项目」这类下拉用它） */
+  heading?: string;
+  /**
+   * 触发这个菜单的元素。
+   *
+   * 点它不算「点外面」，否则开关式下拉会失效：点按钮收起时，
+   * mousedown 会先把菜单关掉，紧接着的 click 又重新打开，看起来就是收不起来。
+   */
+  anchor?: HTMLElement | null;
 }
 
 interface Props {
@@ -55,7 +64,10 @@ export function ContextMenu({ spec, onClose }: Props) {
   // 点别处、按 Esc、滚动都关掉
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose();
+      if (ref.current?.contains(e.target as Node)) return;
+      // 触发菜单的那个元素（比如标题栏的仓库名按钮）也不算「点外面」
+      if (spec.anchor?.contains(e.target as Node)) return;
+      onClose();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -70,7 +82,7 @@ export function ContextMenu({ spec, onClose }: Props) {
       window.removeEventListener("wheel", onClose, true);
       window.removeEventListener("resize", onClose);
     };
-  }, [onClose]);
+  }, [onClose, spec.anchor]);
 
   return (
     <div
@@ -79,6 +91,7 @@ export function ContextMenu({ spec, onClose }: Props) {
       style={{ left: pos.x, top: pos.y }}
       onContextMenu={(e) => e.preventDefault()}
     >
+      {spec.heading && <div className="ctx-heading">{spec.heading}</div>}
       {spec.items.map((it, i) => {
         if (it.separator) return <div key={i} className="ctx-sep" />;
         return (

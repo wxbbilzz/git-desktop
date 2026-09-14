@@ -267,3 +267,12 @@ export const IconVolumeOff = () => (
     <path d="m21 9-5 6" />
   </svg>
 );
+
+/** 关于 / 信息 */
+export const IconInfo = () => (
+  <svg {...base}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5" />
+    <path d="M12 7.8v.4" />
+  </svg>
+);
