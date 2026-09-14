@@ -13,7 +13,7 @@
 set -euo pipefail
 
 APPID="org.bingit.app"
-VERSION="1.0.1.0"
+VERSION="2.0.0.0"
 ARCH="amd64"
 NAME="Bingit"
 NAME_ZH="冰冰 Git"
@@ -27,12 +27,19 @@ rm -rf "$PKGROOT"
 mkdir -p "$PKGROOT/DEBIAN"
 
 # ---------- 先编译 ----------
+# 这里必须让编译失败直接终止脚本。
+# 老写法是 `wails build 2>&1 | grep -E "Built|error" || true`，
+# 管道把退出码吃掉了：一旦编译失败，下面的 [ -f "$BIN" ] 会命中
+# 上一次残留的旧二进制，于是打出来的 deb 里装的是过期的程序，
+# 而且脚本还会打印「打包完成」。所以改成：先删旧产物，再让 wails build
+# 自己决定成败（set -e 会让它失败即退出）。
 echo "==> 编译"
 cd "$HERE"
-wails build 2>&1 | grep -E "Built|error" || true
-
 BIN="$HERE/build/bin/bingit"
-[ -f "$BIN" ] || { echo "找不到编译产物 $BIN"; exit 1; }
+rm -f "$BIN"
+wails build
+
+[ -f "$BIN" ] || { echo "编译失败：找不到产物 $BIN"; exit 1; }
 
 # ---------- §3 应用目录结构 ----------
 APPDIR="$PKGROOT/opt/apps/$APPID"
@@ -90,7 +97,8 @@ Terminal=false
 StartupNotify=true
 StartupWMClass=$APPID
 Categories=Development;RevisionControl;
-Keywords=git;bingit;lazygit;vcs;版本控制;
+Keywords=git;bingit;lazygit;vcs;
+Keywords[zh_CN]=git;冰冰;版本控制;仓库;
 DESKTOP
 
 # ---------- §4 info 文件 ----------
